@@ -5,3 +5,4 @@ ebin/
 *.rpm
 .rebar
 rel/*
+*.deb
