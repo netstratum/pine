@@ -1,0 +1,28 @@
+{application, pine,
+ [
+  {description, "PINs Engine"},
+  {vsn, "0.1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  mnesia,
+                  crypto,
+                  ranch,
+                  cowlib,
+                  cowboy
+                 ]},
+  {mod, { pine_app, []}},
+  {env, [ {port, 6090},
+          {dispatch_source, [{'_', [{"/", cowboy_static, {priv_file, pine,
+                                      "static/index.html"}},
+                             {"/api", pine_api, []}]}]},
+          {pool_size, 100},
+          {secure_flag, true},
+          {cacertfile, "static/ssl/cowboy-ca.crt"},
+          {certfile, "static/ssl/server.crt"},
+          {keyfile, "static/ssl/server.key"},
+          {log_path, "log/core"},
+          {log_base_name, "log"},
+          {extension, ".txt"} ]}
+ ]}.
