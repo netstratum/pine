@@ -6,10 +6,8 @@ compile:
 deps:
 	@mkdir -p deps
 	@$(rebar) get-deps
-clean_all:
-	@$(rebar) -r clean
 clean:
-	@$(rebar) clean
+	@$(rebar) -r clean
 release:
 	@$(rebar) -q generate
 start:

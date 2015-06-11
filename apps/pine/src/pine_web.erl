@@ -1,24 +1,28 @@
 -module(pine_web).
 -behaviour(gen_server).
 
+-import(pine_mnesia, [read_conf/1, read_conf/2]).
+
 -export([start_link/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
         code_change/3, terminate/2]).
+
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-  {ok, DispatchSource} = application:get_env(dispatch_source),
-  {ok, Port} = application:get_env(port),
-  {ok, PoolSize} = application:get_env(pool_size),
+  DispatchSource = read_conf(dispatch_source, []),
+  Port = read_conf(port, 6090),
+  PoolSize = read_conf(pool_size, 100),
   Dispatch = cowboy_router:compile(DispatchSource),
-  case application:get_env(secure_flag) of
-    {ok, true} ->
+  CACERTFILE = read_conf(cacertfile),
+  CERTFILE = read_conf(certfile),
+  KEYFILE = read_conf(keyfile),
+  case read_conf(secure_flag, false) of
+    true when CACERTFILE =/= undefined; CERTFILE =/= undefined; 
+        KEYFILE =/= undefined ->
       PrivDir = code:priv_dir(pine),
-      {ok, CACERTFILE} = application:get_env(cacertfile),
-      {ok, CERTFILE} = application:get_env(certfile),
-      {ok, KEYFILE} = application:get_env(keyfile),
       TransOpts = [{port, Port}, 
                    {cacertfile, filename:join(PrivDir, CACERTFILE)},
                    {certfile, filename:join(PrivDir, CERTFILE)},
