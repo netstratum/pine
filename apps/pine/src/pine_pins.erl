@@ -3,19 +3,45 @@
 
 -include("pine_mnesia.hrl").
 
--import(pine_tools, [int_to_list_pad/3]).
+-import(pine_tools, [uuid/0, int_to_list_pad/3]).
+-import(pine_mnesia, [create_table/2]).
 
+-export([generate/6, load_file/1, open_pin/2, close_pin/2, burn_pin/2]).
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          code_change/3, terminate/2]).
--export([generate/6]).
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+load_file(Filename) ->
+  gen_server:call(?MODULE, {load_file, Filename}).
+
+open_pin(Pin, EndUser) ->
+  gen_server:call(?MODULE, {open_pin, Pin, EndUser}).
+
+close_pin(Seq, EndUser) ->
+  gen_server:call(?MODULE, {close_pin, Seq, EndUser}).
+
+burn_pin(Seq, EndUser) ->
+  gen_server:call(?MODULE, {burn_pin, Seq, EndUser}).
+
 init([]) ->
   random:seed(os:timestamp()), 
+  init_tables(),
   {ok, ok}.
 
+handle_call({load_file, Filename}, _From, State) ->
+  Reply = handle_load_file(Filename),
+  {reply, Reply, State};
+handle_call({open_pin, Pin, EndUser}, _From, State) ->
+  Reply = handle_open_pin(Pin, EndUser),
+  {reply, Reply, State};
+handle_call({close_pin, Seq, EndUser}, _From, State) ->
+  Reply = handle_close_pin(Seq, EndUser),
+  {reply, Reply, State};
+handle_call({burn_pin, Seq, EndUser}, _From, State) ->
+  Reply = handle_burn_pin(Seq, EndUser),
+  {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -31,9 +57,19 @@ code_change(_OldVsn, State, _Extra) ->
 terminate(_Reason, _State) ->
   ok.
 
+init_tables() ->
+  lists:map(
+    fun({Table, Options}) -> create_table(Table, Options) end,
+    [{pins, [{attributes, record_info(fields, pins)},
+             {index, [seq, pin]}]},
+     {usedpins, [{attributes, record_info(fields, usedpins)},
+                 {index, [seq, pin]}]}]
+    ).
+
 generate({PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber, SerialLength,
           CountryCode, RegionCode, OrderId}, 
           OrderName, FaceValue, Quantity, Length, Form) ->
+  random:seed(os:timestamp()),
   case file:open(OrderName, [write]) of
     {ok, Fd} ->
       write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber}, 
@@ -68,3 +104,139 @@ write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId,
   io:format(Fd, "~p,~s~n", [Pin, Serial]),
   write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId, 
              Quantity, Length, numeric, SerialNumber + 1).
+
+handle_load_file(Filename) ->
+  case file:open(Filename, [read]) of
+    {error, Reason} ->
+      io:format("Failed to open file ~p~n", [Reason]),
+      {error, Reason};
+    {ok, Fd} ->
+      case read_file_header(Fd) of
+        {error, ReasonRead} ->
+          io:format("Failed to open file ~p~n", [ReasonRead]),
+          {error, ReasonRead};
+        {Value, ExpiryDate} ->
+          ExpiryEDate = {list_to_integer(string:right(ExpiryDate, 4)),
+                         list_to_integer(string:substr(ExpiryDate, 2, 2)),
+                         list_to_integer(string:left(ExpiryDate, 2))},
+          case load_pins(Fd, Value, ExpiryEDate) of
+            ok ->
+              ok;
+            {error, ReasonLoad} ->
+              io:format("Failed to load file ~p~n", [ReasonLoad]),
+              {error, ReasonLoad}
+          end
+      end
+  end.
+
+read_file_header(Fd) ->
+  case file:read_line(Fd) of
+    {ok, DataLine} ->
+      case catch string:tokens(DataLine, ",\n") of
+        [Value, _, _, ExpiryDate, _, _] ->
+          {Value, ExpiryDate};
+        Header ->
+          io:format("Header is ~p~n", [Header]),
+          {error, "bad header"}
+      end;
+    eof ->
+      {error, "no header"};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+load_pins(Fd, Value, ExpiryEDate) ->
+  case file:read_line(Fd) of
+    {ok, DataLine} ->
+      case catch string:tokens(DataLine, ",\n") of
+        {'EXIT', Reason} ->
+          {error, Reason};
+        [Pin, Seq] ->
+          Id = uuid(),
+          Now = os:timestamp(),
+          mnesia:dirty_write(#pins{id=Id, seq=list_to_binary(Seq), 
+                                   pin=list_to_binary(Pin),
+                                   value=list_to_binary(Value), status=active,
+                                   created_on=Now, expires_on=ExpiryEDate}),
+          load_pins(Fd, Value, ExpiryEDate);
+        AnythingElse ->
+          io:format("Received Something Else ~p~n", [AnythingElse]),
+          {error, "Format Error"}
+      end;
+    eof ->
+      ok;
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+handle_open_pin(Pin, EndUser) ->
+  case mnesia:dirty_index_read(pins, Pin, #pins.pin) of
+    [] ->
+      {error, not_found};
+    [PinRecord] ->
+      case PinRecord#pins.status of
+        active ->
+          Now = os:timestamp(),
+          mnesia:dirty_write(PinRecord#pins{status=open,
+                                            opened_on=Now,
+                                            opened_by=EndUser}),
+          {ok, PinRecord#pins.seq, PinRecord#pins.value};
+        open ->
+          if
+            PinRecord#pins.opened_by == EndUser,
+                EndUser =/= undefined ->
+              {ok, PinRecord#pins.seq, PinRecord#pins.value};
+            true ->
+              {error, not_found}
+          end;
+        _ ->
+          {error, not_found}
+      end
+  end.
+
+handle_close_pin(Seq, EndUser) ->
+  case mnesia:dirty_index_read(pins, Seq, #pins.seq) of
+    [] ->
+      {error, not_found};
+    [PinRecord] ->
+      if
+        PinRecord#pins.opened_by == EndUser,
+            EndUser =/= undefined ->
+          case PinRecord#pins.status of
+            active ->
+              {ok, already_closed};
+            open ->
+              mnesia:dirty_write(PinRecord#pins{status=active}),
+              ok;
+            _ ->
+              {error, not_allowd}
+          end;
+        true ->
+          {error, not_found}
+      end
+  end.
+
+handle_burn_pin(Seq, EndUser) ->
+  case mnesia:dirty_index_read(pins, Seq, #pins.seq) of
+    [] ->
+      {error, not_found};
+    [PinRecord] ->
+      if
+        PinRecord#pins.opened_by == EndUser,
+            EndUser =/= undefined ->
+          case PinRecord#pins.status of
+            active ->
+              {ok, not_allowed};
+            open ->
+              Now = os:timestamp(),
+              mnesia:dirty_write(PinRecord#pins{status=used,
+                                                used_on=Now,
+                                                used_by=EndUser}),
+              ok;
+            used ->
+              {ok, already_used}
+          end;
+        true ->
+          {error, not_found}
+      end
+  end.

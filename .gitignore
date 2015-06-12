@@ -1,4 +1,5 @@
 deps/
+docs/
 ebin/
 *.beam
 *.swp

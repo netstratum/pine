@@ -82,6 +82,78 @@ handle_command(<<"identity.user.logout">>, Arguments, Token, Source) ->
           {200, []}
       end
   end;
+handle_command(<<"pin.open">>, Arguments, Token, Source) ->
+  io:format("pin.open - ~p ~p ~p ~n", [Arguments, Token, Source]),
+  TokenBin = hexstr_to_bin(binary_to_list(Token)),
+  case pine_user:validate(TokenBin, Source) of
+    {error, Reason} ->
+      {401, encode_json({failed_reason, Reason})};
+    ok ->
+      case lists:keyfind(<<"pin">>, 1, Arguments) of
+        false ->
+          {400, encode_json({failed_reason, <<"missing pin">>})};
+        {_, PinBin} ->
+          case lists:keyfind(<<"opened_by">>, 1, Arguments) of
+            false ->
+              {400, encode_json({failed_reason, <<"missing opened_by">>})};
+            {_, OpenedByBin} ->
+              case pine_pins:open_pin(PinBin, OpenedByBin) of
+                {error, Reason} ->
+                  {400, encode_json({failed_reason, Reason})};
+                {ok, Seq, Value} ->
+                  {200, encode_json([{seq, Seq}, {value, Value}])}
+              end
+          end
+      end
+  end;
+handle_command(<<"pin.close">>, Arguments, Token, Source) ->
+  io:format("pin.close - ~p ~p ~p ~n", [Arguments, Token, Source]),
+  TokenBin = hexstr_to_bin(binary_to_list(Token)),
+  case pine_user:validate(TokenBin, Source) of
+    {error, Reason} ->
+      {401, encode_json({failed_reason, Reason})};
+    ok ->
+      case lists:keyfind(<<"seq">>, 1, Arguments) of
+        false ->
+          {400, encode_json({failed_reason, <<"missing seq">>})};
+        {_, SeqBin} ->
+          case lists:keyfind(<<"opened_by">>, 1, Arguments) of
+            false ->
+              {400, encode_json({failed_reason, <<"missing opened_by">>})};
+            {_, OpenedByBin} ->
+              case pine_pins:close_pin(SeqBin, OpenedByBin) of
+                {error, Reason} ->
+                  {400, encode_json({failed_reason, Reason})};
+                ok ->
+                  {200, []}
+              end
+          end
+      end
+  end;
+handle_command(<<"pin.burn">>, Arguments, Token, Source) ->
+  io:format("pin.burn ~p ~p ~p ~n", [Arguments, Token, Source]),
+  TokenBin = hexstr_to_bin(binary_to_list(Token)),
+  case pine_user:validate(TokenBin, Source) of
+    {error, Reason} ->
+      {401, encode_json({failed_reason, Reason})};
+    ok ->
+      case lists:keyfind(<<"seq">>, 1, Arguments) of
+        false ->
+          {400, encode_json({failed_reason, <<"missing seq">>})};
+        {_, SeqBin} ->
+          case lists:keyfind(<<"opened_by">>, 1, Arguments) of
+            false ->
+              {400, encode_json({failed_reason, <<"missing opened_by">>})};
+            {_, OpenedByBin} ->
+              case pine_pins:burn_pin(SeqBin, OpenedByBin) of
+                {error, Reason} ->
+                  {400, encode_json({failed_reason, Reason})};
+                ok ->
+                  {200, []}
+              end
+          end
+      end
+  end;
 handle_command(FunctionName, Arguments, Token, Source) ->
   io:format("API - ~p - ~p - ~p - ~p~n", [FunctionName, Arguments, Token, Source]),
   {200, []}.
