@@ -149,7 +149,9 @@ handle_command(<<"pin.burn">>, Arguments, Token, Source) ->
                 {error, Reason} ->
                   {400, encode_json({failed_reason, Reason})};
                 ok ->
-                  {200, []}
+                  {200, []};
+                {ok, Info} ->
+                  {200, encode_json({info, Info})}
               end
           end
       end
