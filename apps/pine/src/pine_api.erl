@@ -1,7 +1,7 @@
 -module(pine_api).
 
 -import(pine_tools, [encode_json/1, decode_json/1, hexstr_to_bin/1, 
-                     bin_to_hexstr/1]).
+                     bin_to_hexstr/1, ts_to_str/1]).
 
 -export([init/2]).
 
@@ -33,12 +33,18 @@ handle_post(<<"POST">>, false, Req) ->
 handle_post(_, _, Req) ->
   cowboy_req:reply(405, Req).
 
-handle_command([{Arguments,_True}], Token, Source) ->
+handle_command([{Arguments,_True}], TokenHexString, Source) ->
   ArgumentsErl = decode_json(Arguments),
   case lists:keyfind(<<"function">>, 1, ArgumentsErl) of
     false ->
       {400, encode_json({failed_reason, <<"missing function name">>})};
     {_, FunctionName} ->
+      Token = case catch hexstr_to_bin(binary_to_list(TokenHexString)) of
+        {'EXIT', _Reason} ->
+          undefined;
+        TokenBin ->
+          TokenBin
+      end,
       handle_command(FunctionName, ArgumentsErl, Token, Source)
   end.
 
@@ -70,12 +76,11 @@ handle_command(<<"identity.user.login">>, Arguments, _Token, Source) ->
   end;
 handle_command(<<"identity.user.logout">>, Arguments, Token, Source) ->
   io:format("identity.user.logout - ~p ~p ~p ~n", [Arguments, Token, Source]),
-  TokenBin = hexstr_to_bin(binary_to_list(Token)),
   case lists:keyfind(<<"username">>, 1, Arguments) of
     false ->
       {400, encode_json({failed_reason, <<"missing username">>})};
     {_, UsernameBin} ->
-      case pine_user:logout(UsernameBin, TokenBin, Source) of
+      case pine_user:logout(UsernameBin, Token, Source) of
         {error, Reason} ->
           {400, encode_json({failed_reason, Reason})};
         ok ->
@@ -84,8 +89,7 @@ handle_command(<<"identity.user.logout">>, Arguments, Token, Source) ->
   end;
 handle_command(<<"pin.open">>, Arguments, Token, Source) ->
   io:format("pin.open - ~p ~p ~p ~n", [Arguments, Token, Source]),
-  TokenBin = hexstr_to_bin(binary_to_list(Token)),
-  case pine_user:validate(TokenBin, Source) of
+  case pine_user:validate(Token, Source) of
     {error, Reason} ->
       {401, encode_json({failed_reason, Reason})};
     ok ->
@@ -101,15 +105,18 @@ handle_command(<<"pin.open">>, Arguments, Token, Source) ->
                 {error, Reason} ->
                   {400, encode_json({failed_reason, Reason})};
                 {ok, Seq, Value} ->
-                  {200, encode_json([{seq, Seq}, {value, Value}])}
+                  {200, encode_json([{seq, Seq}, {value, Value}])};
+                {ok, Seq, Value, OpenedOn} ->
+                  OpenedDate = list_to_binary(ts_to_str(OpenedOn)),
+                  {<<"250 AlreadyProcessed">>, encode_json([{seq, Seq}, 
+                                {value, Value}, {opened_on, OpenedDate}])}
               end
           end
       end
   end;
 handle_command(<<"pin.close">>, Arguments, Token, Source) ->
   io:format("pin.close - ~p ~p ~p ~n", [Arguments, Token, Source]),
-  TokenBin = hexstr_to_bin(binary_to_list(Token)),
-  case pine_user:validate(TokenBin, Source) of
+  case pine_user:validate(Token, Source) of
     {error, Reason} ->
       {401, encode_json({failed_reason, Reason})};
     ok ->
@@ -132,8 +139,7 @@ handle_command(<<"pin.close">>, Arguments, Token, Source) ->
   end;
 handle_command(<<"pin.burn">>, Arguments, Token, Source) ->
   io:format("pin.burn ~p ~p ~p ~n", [Arguments, Token, Source]),
-  TokenBin = hexstr_to_bin(binary_to_list(Token)),
-  case pine_user:validate(TokenBin, Source) of
+  case pine_user:validate(Token, Source) of
     {error, Reason} ->
       {401, encode_json({failed_reason, Reason})};
     ok ->

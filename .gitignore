@@ -1,9 +1,14 @@
-deps/
+.eunit
+deps
 docs/
-ebin/
+ebin
+*.o
+*.plt
 *.beam
 *.swp
 *.rpm
 .rebar
-rel/*
+rel/pine
 *.deb
+.concrete/DEV_MODE
+erl_crash.dump

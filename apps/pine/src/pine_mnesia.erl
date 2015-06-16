@@ -3,7 +3,8 @@
 
 -include("pine_mnesia.hrl").
 
--export([start_link/0, read_conf/1, read_conf/2, create_table/2]).
+-export([start_link/0, read_conf/1, read_conf/2, create_table/2,
+         update_conf/3, update_conf/4, update_schema/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3]).
 
@@ -13,20 +14,43 @@ start_link() ->
 read_conf(Key) ->
   read_conf(Key, undefined).
 
+update_schema() ->
+  init_schema().
+
 read_conf(Key, Default) ->
-  case catch pine_mnesia:dirty_read(sysconf, Key) of
+  case catch mnesia:dirty_read(sysconf, Key) of
     {'EXIT', _Reason} ->
       application:get_env(pine, Key, Default);
     [] ->
       Value = application:get_env(pine, Key, Default),
-      Now = erlang:now(),
-      pine_mnesia:dirty_write(#sysconf{key=Key, value=Value, 
-                                       notes="System Default",
-                                       created_on=Now, 
-                                       created_by="sys"}),
+      Now = os:timestamp(),
+      mnesia:dirty_write(#sysconf{key=Key, value=Value, 
+                                  notes="System Default",
+                                  created_on=Now}),
       Value;
     [Sysconf] ->
       Sysconf#sysconf.value
+  end.
+
+update_conf(Key, Value, User) ->
+  update_conf(Key, Value, User, undefined).
+update_conf(Key, Value, User, Notes) ->
+  Now = os:timestamp(),
+  case catch mnesia:dirty_read(sysconf, Key) of
+    {'EXIT', _Reason} ->
+      {error, no_table};
+    [] ->
+      mnesia:dirty_write(#sysconf{key=Key, value=Value,
+                                  notes=Notes, created_on=Now,
+                                  created_by=User});
+    [ConfRecord] ->
+      NotesU = if 
+        Notes == undefined -> ConfRecord#sysconf.notes;
+        true -> Notes
+      end,
+      mnesia:dirty_write(ConfRecord#sysconf{value=Value, notes=NotesU,
+                                            modified_on=Now, 
+                                            modified_by=User})
   end.
 
 create_table(Table, Options) ->

@@ -185,7 +185,8 @@ handle_open_pin(Pin, EndUser) ->
           if
             PinRecord#pins.opened_by == EndUser,
                 EndUser =/= undefined ->
-              {ok, PinRecord#pins.seq, PinRecord#pins.value};
+              {ok, PinRecord#pins.seq, PinRecord#pins.value, 
+               PinRecord#pins.opened_on};
             true ->
               {error, not_found}
           end;
