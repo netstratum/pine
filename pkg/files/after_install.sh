@@ -1,4 +1,4 @@
-#!/boin/bash
+#!/bin/bash
 chown -R pine.pine /opt/pine
 
 cat > /etc/init.d/pine <<EOF
