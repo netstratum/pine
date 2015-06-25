@@ -15,7 +15,7 @@ read_conf(Key) ->
   read_conf(Key, undefined).
 
 update_schema() ->
-  init_schema().
+  gen_server:call(?MODULE, update_schema).
 
 read_conf(Key, Default) ->
   case catch mnesia:dirty_read(sysconf, Key) of
@@ -64,6 +64,9 @@ init([]) ->
 handle_call({create_table, Table, Options}, _From, State) ->
   Reply = create_table_imp(Table, Options),
   {reply, Reply, State};
+handle_call(update_schema, _From, State) ->
+  init_schema(),
+  {reply, ok, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -93,21 +96,15 @@ init_schema() ->
   end.
 
 init_tables() ->
-  create_table_imp(reference, 
-                   [{attributes, record_info(fields, reference)}]),
-  create_table_imp(sysconf, 
-                   [{attributes, record_info(fields, sysconf)}]).
+  create_table_imp(reference, [{disc_copies, [node()]},
+      {attributes, record_info(fields, reference)}]),
+  create_table_imp(sysconf, [{disc_copies, [node()]}, 
+      {attributes, record_info(fields, sysconf)}]),
+  mnesia:wait_for_tables([reference, sysconf], 2500).
 
 create_table_imp(Table, Options) ->
   SchemaType = read_conf(mnesia_schema, ram),
-  case catch mnesia:table_info(Table, storage_type) of
-    {'EXIT', _Reason} ->
-      create_table_imp_new(Table, Options, SchemaType);
-    unknown ->
-      create_table_imp_copy(Table, Options, SchemaType);
-    Type ->
-      create_table_imp_change(Table, Options, Type, SchemaType)
-  end.
+  create_table_imp_new(Table, Options, SchemaType).
   
 create_table_imp_new(Table, Options, ram) ->
   OptionsU = [{ram_copies, [node()]}|lists:filter(
@@ -124,34 +121,4 @@ create_table_imp_new(Table, Options, ram) ->
 create_table_imp_new(Table, Options, _SchemaType) ->
   mnesia:create_table(Table, Options).
 
-create_table_imp_copy(Table, _Options, ram) ->
-  mnesia:add_table_copy(Table, node(), ram_copies);
-create_table_imp_copy(Table, Options, _SchemaType) ->
-  CopyType = case lists:keyfind(disc_only_copies, 1, Options) of
-    false ->
-      case lists:keyfind(disc_copies, 1, Options) of
-        false ->
-          ram_copies;
-        _ ->
-          disc_copies
-      end;
-    _ ->
-      disc_only_copies
-  end,
-  mnesia:add_table_copy(Table, node(), CopyType).
-
-create_table_imp_change(_Table, _Options, _Type, ram) ->
-  ok;
-create_table_imp_change(Table, Options, disc_copies, disc) ->
-  case lists:keyfind(disc_only_copies, 1, Options) of
-    false ->
-      case lists:keyfind(ram_copies, 1, Options) of
-        false ->
-          ok;
-        _ ->
-          mnesia:change_table_copy_type(Table, node(), ram_copies)
-      end;
-    _ ->
-      mnesia:change_table_copy_type(Table, node(), disc_only_copies)
-  end.
 

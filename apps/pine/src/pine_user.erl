@@ -54,16 +54,20 @@ code_change(_OldVsn, State, _Extra) ->
 init_tables() ->
   lists:map(
     fun({Table, Options}) -> create_table(Table, Options) end,
-    [{access,[{attributes, record_info(fields, access)}]},
-     {roles, [{attributes, record_info(fields, roles)},
+    [{access,[{disc_copies, [node()]},{attributes, record_info(fields, access)}]},
+     {roles, [{disc_copies, [node()]},{attributes, record_info(fields, roles)},
               {index, [name]}]},
-     {users, [{attributes, record_info(fields, users)},
+     {users, [{disc_copies, [node()]},{attributes, record_info(fields, users)},
               {index, [name]}]},
      {sessions, [{attributes, record_info(fields, sessions)},
                 {index, [user]}]},
-     {session_log, [{attributes, record_info(fields, session_log)}]},
-     {access_log, [{attributes, record_info(fields, access_log)}]}]
-    ).
+     {session_log, [{disc_copies, [node()]},
+                    {attributes, record_info(fields, session_log)}]},
+     {access_log, [{disc_copies, [node()]}, 
+                    {attributes, record_info(fields, access_log)}]}]
+    ),
+  mnesia:wait_for_tables([access, roles, users, sessions, session_log,
+                          access_log], 2500).
 
 init_data() ->
   Role = read_conf(role, <<"root">>),
@@ -138,7 +142,7 @@ handle_validate(Cookie, Source) ->
           TimeDiffMin = timestamp_diff_seconds(Now, Then) div 60,
           if
             TimeDiffMin =< ExpiryMin ->
-              ok;
+              {ok, SessionRecord#sessions.user};
             true ->
               mnesia:dirty_delete(sessions, Cookie),
               {error, session_expired}

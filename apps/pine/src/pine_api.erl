@@ -92,7 +92,7 @@ handle_command(<<"pin.open">>, Arguments, Token, Source) ->
   case pine_user:validate(Token, Source) of
     {error, Reason} ->
       {401, encode_json({failed_reason, Reason})};
-    ok ->
+    {ok, _User} ->
       case lists:keyfind(<<"pin">>, 1, Arguments) of
         false ->
           {400, encode_json({failed_reason, <<"missing pin">>})};
@@ -142,7 +142,7 @@ handle_command(<<"pin.burn">>, Arguments, Token, Source) ->
   case pine_user:validate(Token, Source) of
     {error, Reason} ->
       {401, encode_json({failed_reason, Reason})};
-    ok ->
+    {ok, _User} ->
       case lists:keyfind(<<"seq">>, 1, Arguments) of
         false ->
           {400, encode_json({failed_reason, <<"missing seq">>})};
@@ -162,6 +162,30 @@ handle_command(<<"pin.burn">>, Arguments, Token, Source) ->
           end
       end
   end;
+% handle_command(<<"sys.conf">>, Arguments, Token, Source) ->
+%   io:format("conf.mnesia.schema ~p ~p ~p~n", [Arguments, Token, Source]),
+%   case pine_user:validate(Token, Source) of
+%     {error, Reason} ->
+%       {401, encode_json({failed_reason, Reason})};
+%     {ok, User} ->
+%       case update_configs(Configs, User) of
+%         ok ->
+%           {200, []};
+%         {ok, Results} ->
+%           {207, encode_json_results(Results)};
+%         {error, Reason} ->
+%           {400, encode_json({failed_Reason, Reason})}
+%       end;
+%   end;
 handle_command(FunctionName, Arguments, Token, Source) ->
   io:format("API - ~p - ~p - ~p - ~p~n", [FunctionName, Arguments, Token, Source]),
   {200, []}.
+
+% update_configs([{Key, Value}|Configs], User) ->
+%   KeyAtom = if
+%     is_atom(Key) -> Key;
+%     is_list(Key) -> list_to_atom(Key);
+%     is_binary(Key) -> list_to_atom(binary_to_list(Key))
+%   end,
+%   case pine_mnesia:update_conf(KeyAtom, Value, User) of
+% 

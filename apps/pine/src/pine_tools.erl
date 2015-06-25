@@ -1,7 +1,7 @@
 -module(pine_tools).
 -export([encode_json/1, decode_json/1, timestamp_diff_seconds/2,
          ts_to_str/1, floor/1, ceiling/1, split_string/2,
-         int_len/1, int_to_list_pad/3, uuid/0, md5/1,
+         int_len/1, int_to_list_pad/3, uuid/0, md5/1, uptime/0,
          hexstr_to_bin/1, bin_to_hexstr/1, hexstr_to_list/1, list_to_hexstr/1]).
 
 encode_json(ErlangTerm) when is_tuple(ErlangTerm) ->
@@ -94,3 +94,10 @@ hexstr_to_list([X,Y|T]) ->
       [int(X)*16 + int(Y) | hexstr_to_list(T)];
 hexstr_to_list([]) ->
       [].
+
+uptime() ->
+  {UpTime, _} = erlang:statistics(wall_clock),
+  {D, {H, M, S}} = calendar:seconds_to_daystime(UpTime div 1000),
+  lists:flatten(
+    io_lib:format("~p days, ~p hours, ~p minutes and ~p seconds", 
+                  [D,H,M,S])).

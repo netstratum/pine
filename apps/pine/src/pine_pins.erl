@@ -60,11 +60,12 @@ terminate(_Reason, _State) ->
 init_tables() ->
   lists:map(
     fun({Table, Options}) -> create_table(Table, Options) end,
-    [{pins, [{attributes, record_info(fields, pins)},
+    [{pins, [{disc_copies, [node()]},{attributes, record_info(fields, pins)},
              {index, [seq, pin]}]},
-     {usedpins, [{attributes, record_info(fields, usedpins)},
+     {usedpins, [{disc_copies, [node()]},{attributes, record_info(fields, usedpins)},
                  {index, [seq, pin]}]}]
-    ).
+    ),
+  mnesia:wait_for_tables([pins, usedpins], 2500).
 
 generate({PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber, SerialLength,
           CountryCode, RegionCode, OrderId}, 
