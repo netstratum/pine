@@ -3,22 +3,15 @@
 -import(pine_tools, [encode_json/1, decode_json/1, hexstr_to_bin/1, 
                      bin_to_hexstr/1, ts_to_str/1]).
 
--export([init/3, handle/2, terminate/3]).
+-export([init/2]).
 
 -include("pine_mnesia.hrl").
 
-init(_Transport, Req,  []) ->
-  {ok, Req, undefined}.
-
-handle(Req, State) ->
-  io:format("Received Request ~p and ~p ~n", [Req, State]),
+init(Req, Opts) ->
   Method = cowboy_req:method(Req),
   HasBody = cowboy_req:has_body(Req),
   Res = handle_post(Method, HasBody, Req),
-  {ok, Res, State}.
-
-terminate(_Reason, _Req, _State) ->
-  ok.
+  {ok, Res, Opts}.
 
 handle_post(<<"POST">>, true, Req) ->
   {ok, Arguments, Req2} = cowboy_req:body_qs(Req),
