@@ -119,7 +119,7 @@ handle_command(<<"pin.close">>, Arguments, Token, Source) ->
   case pine_user:validate(Token, Source) of
     {error, Reason} ->
       {401, encode_json({failed_reason, Reason})};
-    ok ->
+    {ok, _User} ->
       case lists:keyfind(<<"seq">>, 1, Arguments) of
         false ->
           {400, encode_json({failed_reason, <<"missing seq">>})};
