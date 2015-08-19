@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<title>Console</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body> 
+  <div class="panel_head">
+    <h1>COWTEST: Testing Cowboy Websockets</h1>
+  </div>
+<div class="cmd-box" id="console_disp" style="display:none;">
+<div class="cmd-container" >
+    <p class="row-first"></p>
+    
+   
+
+ 
+   
+   
+</div>
+<div class="divtext"><input type="text" class="inp"></div>
+</div>
+
+
+<script type="text/javascript">
+ /*
+if(typeof(EventSource) !== "undefined") {
+    
+
+    var source = new EventSource("demo.php");
+
+    source.onmessage = function(event) {
+
+        document.getElementById("result").innerHTML += event.data + "<br>";
+    };
+} else {
+    document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+}
+*/
+
+     var currentarray = 0;
+     commands = [];
+     var localdata = '';
+     var ws = '';
+    var $cont = $('.cmd-container');
+   var sendmsg='';
+   var default_height = '';
+
+ //$("#testform").serializeArray();
+/* $(document).ready(function() {
+            
+            $("#driver").click(function(event){
+                
+               $.post( 
+                  "result.php",
+                  { name: "Zara" },
+                  dataType: "html",
+                  function(data) {
+                     $('#stage').html(data);
+                  }
+               );
+                    
+            });
+         });
+
+*/
+
+if (window.MozWebSocket) {
+  window.WebSocket = window.MozWebSocket;
+}
+
+function WebSocketTest()
+         {
+            if ("WebSocket" in window)
+            {
+              // alert("WebSocket is supported by your Browser!");
+               // Let us open a web socket
+                ws = new WebSocket("ws://" + window.location.host + "/sock");
+                
+               ws.onopen = function()
+               {
+
+                  $('#console_disp').show();
+                  $( ".inp" ).focus();
+                  // Web Socket is connected, send data using send()
+                  //ws.send(JSON.stringify({name:'Vipin',Designation:'developer'}));
+                //  alert("Message is sent...");
+               };
+                
+               ws.onmessage = function (evt) 
+               { 
+                  var received_msg =  evt.data; //JSON.parse(evt.data);
+               //   alert(received_msg);
+               
+                 
+
+                 if (sendmsg == 'clear'){
+                  $cont.html('<p class="row-first"></p>');
+                  $('.row-first').css('height',default_height+'px');
+                 }else{
+                  $cont.append('<p>' + received_msg + '</p>');
+                    $('.row-first').css('height',($('.row-first').height()-15)+'px');
+                    $(".cmd-container").scrollTop($(".cmd-container")[0].scrollHeight);
+                }
+
+               //  alert(received_msg.name);
+               };
+                
+               ws.onclose = function()
+               { 
+                  // websocket is closed.
+                //  alert("Connection is closed..."); 
+               };
+                
+            }
+            else
+                
+            {
+               // The browser doesn't support WebSocket
+               alert("Please Upgrade Your Browser to Support this Feature!");
+            }
+         }
+
+
+//var Socket = new WebSocket(url, [protocal] );
+
+
+window.onbeforeunload = function() {
+   // ws.onclose = function () {}; // disable onclose handler first
+    ws.close()
+};
+
+//ws.send(JSON.stringify(object));
+//JSON.parse(e.data);
+
+
+window.addEventListener("load", WebSocketTest, false);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    $(document).ready(function(){
+
+
+      default_height = $('.row-first').css('height');
+
+        $( ".inp" ).focus();
+
+        if(localdata >3000)
+        {
+
+            localStorage.removeItem('commands');
+
+        }
+
+
+          if (localStorage["commands"]!=''){
+              
+           //   commands = JSON.parse(localStorage["commands"]);
+             // currentarray = commands.length;
+          
+          }
+
+    });
+    
+
+//local data checking
+var localStorageSpace = function(){
+        var allStrings = '';
+        for(var key in window.localStorage){
+            if(window.localStorage.hasOwnProperty(key)){
+                allStrings += window.localStorage[key];
+            }
+        }
+        return allStrings ? 3 + ((allStrings.length*16)/(8*1024)): '0';
+};
+
+
+var localdata = localStorageSpace();
+
+
+//var $cont = $('.cmd-container');
+$cont[0].scrollTop = $cont[0].scrollHeight;
+
+$('.inp').keyup(function(e) {
+    if (e.keyCode == 13) {
+        sendmsg  = $(this).val();
+      if (ws)
+        //ws.send(JSON.stringify({name:$(this).val()}));
+        ws.send($(this).val());
+        
+
+        if ($(this).val() == 'clear')
+          $cont.html('<p class="row-first"></p>');
+        else
+          $cont.append('<p>' + $(this).val() + '</p>');
+
+        
+        $cont[0].scrollTop = $cont[0].scrollHeight;
+
+     if (typeof localStorage["commands"] !== 'undefined' && localStorage["commands"] !== null){
+         
+
+             commands = JSON.parse(localStorage["commands"]);
+    
+
+            commands[commands.length] = $(this).val();
+
+        }else{
+             commands = [];
+            commands[0] = $(this).val();
+
+        }
+    
+       currentarray = commands.length;
+       localStorage["commands"] = JSON.stringify(commands);
+
+
+
+
+        $(this).val('');
+        $('.row-first').css('height',($('.row-first').height()-15)+'px');
+    }else if(e.which == 38){
+
+        if (currentarray>0)
+        currentarray--;
+
+        
+       
+        $('.inp').val(commands[currentarray]);
+
+    }else if(e.which == 40){
+
+        if (currentarray<commands.length)
+        currentarray++;
+    
+        $('.inp').val(commands[currentarray]);
+
+
+    }
+
+
+
+})
+.focus();
+
+</script>
+</body>
+</html> 

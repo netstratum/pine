@@ -1,0 +1,216 @@
+@import url(http://fonts.googleapis.com/css?family=Source+Sans+Pro:200,300);
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-weight: 300;
+}
+body {
+  font-family: 'Source Sans Pro', sans-serif;
+  color: white;
+  font-weight: 300;
+  background: #50a3a2;  
+}
+body ::-webkit-input-placeholder {
+  /* WebKit browsers */
+  font-family: 'Source Sans Pro', sans-serif;
+  color: white;
+  font-weight: 300;
+}
+body :-moz-placeholder {
+  /* Mozilla Firefox 4 to 18 */
+  font-family: 'Source Sans Pro', sans-serif;
+  color: white;
+  opacity: 1;
+  font-weight: 300;
+}
+body ::-moz-placeholder {
+  /* Mozilla Firefox 19+ */
+  font-family: 'Source Sans Pro', sans-serif;
+  color: white;
+  opacity: 1;
+  font-weight: 300;
+}
+body :-ms-input-placeholder {
+  /* Internet Explorer 10+ */
+  font-family: 'Source Sans Pro', sans-serif;
+  color: white;
+  font-weight: 300;
+}
+.wrapper {
+  /*background: #50a3a2;
+  background: -webkit-linear-gradient(top left, #50a3a2 0%, #53e3a6 100%);
+  background: linear-gradient(to bottom right, #50a3a2 0%, #53e3a6 100%);*/
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 400px;
+  margin-top: -200px;
+  overflow: hidden;
+}
+.wrapper.form-success .container h1 {
+  -webkit-transform: translateY(85px);
+      -ms-transform: translateY(85px);
+          transform: translateY(85px);
+}
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 80px 0;
+  height: auto;
+  text-align: center;
+}
+.container h1 {
+  font-size: 40px;
+  -webkit-transition-duration: 1s;
+          transition-duration: 1s;
+  -webkit-transition-timing-function: ease-in-put;
+          transition-timing-function: ease-in-put;
+  font-weight: 200;
+}
+form {
+  padding: 20px 0;
+  position: relative;
+  z-index: 2;
+}
+form input {
+  appearance: none;
+  outline: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.2);
+  width: 250px;
+  border-radius: 3px;
+  padding: 10px 15px;
+  margin: 0 auto 10px auto;
+  display: block;
+  text-align: center;
+  font-size: 18px;
+  color: white;
+  -webkit-transition-duration: 0.25s;
+          transition-duration: 0.25s;
+  font-weight: 300;
+}
+form input:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+form input:focus {
+  background-color: white;
+  width: 300px;
+  color: #53e3a6;
+}
+form button {
+  appearance: none;
+  outline: 0;
+  background-color: white;
+  border: 0;
+  padding: 10px 15px;
+  color: #53e3a6;
+  border-radius: 3px;
+  width: 250px;
+  cursor: pointer;
+  font-size: 18px;
+  -webkit-transition-duration: 0.25s;
+          transition-duration: 0.25s;
+}
+form button:hover {
+  background-color: #f5f7f9;
+}
+.bottom-wrapper {
+	width:250px;
+	margin:0 auto;
+}
+.bottom-wrapper a {
+	font-family: 'Source Sans Pro', sans-serif;
+  	color: rgba(255, 255, 255, 0.6);
+	text-decoration:none;
+}
+	
+.forgot {
+	float:left;	
+	padding: 0;
+	text-align:left;
+}
+.clear {
+	float:right;	
+	padding: 0;
+	text-align:right;
+}
+	
+/* Command panel */
+.cmd-box {
+	width: 70%;	
+	display:block;	
+	padding:10px;
+	margin:0 auto;
+	background:#333;
+}
+	
+.cmd-container, .inp {
+	width: 100%;
+    color: #DDD;
+    background: #222;
+    padding: 4px 6px;
+    border: 1px #222 solid;
+    font-family:Arial, Helvetica, sans-serif;
+    font-size: 13px;
+	-webkit-animation: 1s blink step-end infinite;
+	-moz-animation: 1s blink step-end infinite;
+	-ms-animation: 1s blink step-end infinite;
+	-o-animation: 1s blink step-end infinite;
+	animation: 1s blink step-end infinite;
+}
+.cmd-container p {
+    margin: 0;
+    padding: 3px 6px;
+}
+.cmd-container p:nth-child(odd) {
+    background: none;
+}
+.cmd-container {
+    max-height: 430px;
+    min-height: 429px;
+    overflow: auto;
+    padding: 0;
+}
+.inp {
+   width: 100%;
+	box-sizing: border-box !important;
+ border:1px solid #2E579B;
+}
+
+.divtext{
+  width: 100%;
+  padding:0;margin:0;
+  background:none repeat scroll 0 0 #222;
+  border-color: #222;
+}
+
+.row-first{
+
+   height: 420px;
+
+}
+
+.error {
+  border-color: red;
+  color: red;
+}
+
+.panel_head {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 50px 0;
+  height: auto;
+  text-align: center;
+}
+.panel_head h1 {
+  font-size: 40px;
+  -webkit-transition-duration: 1s;
+          transition-duration: 1s;
+  -webkit-transition-timing-function: ease-in-put;
+          transition-timing-function: ease-in-put;
+  font-weight: 200;
+}
+
+/* end command panel */
