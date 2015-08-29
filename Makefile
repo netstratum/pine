@@ -1,6 +1,7 @@
 .PHONY: all clean compile deps clean_app release start ping stop attach console console_clean build_rpm
 
 rebar=rebar
+
 all: deps compile
 compile:
 	@$(rebar) compile
