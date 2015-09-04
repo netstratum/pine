@@ -24,7 +24,7 @@ read_conf(Key, Default) ->
     [] ->
       Value = application:get_env(pine, Key, Default),
       Now = os:timestamp(),
-      mnesia:dirty_write(#sysconf{key=Key, value=Value, 
+      mnesia:dirty_write(#sysconf{key=Key, value=Value,
                                   notes="System Default",
                                   created_on=Now}),
       Value;
@@ -44,12 +44,12 @@ update_conf(Key, Value, User, Notes) ->
                                   notes=Notes, created_on=Now,
                                   created_by=User});
     [ConfRecord] ->
-      NotesU = if 
+      NotesU = if
         Notes == undefined -> ConfRecord#sysconf.notes;
         true -> Notes
       end,
       mnesia:dirty_write(ConfRecord#sysconf{value=Value, notes=NotesU,
-                                            modified_on=Now, 
+                                            modified_on=Now,
                                             modified_by=User})
   end.
 
@@ -89,7 +89,7 @@ init_schema() ->
     {ram_copies, disc} ->
       mnesia:change_table_copy_type(schema, node(), disc_copies);
     {disc_copies, ram} ->
-      [mnesia:change_table_copy_type(X, node(), ram_copies)|| 
+      [mnesia:change_table_copy_type(X, node(), ram_copies)||
         X <- mnesia:system_info(local_tables)];
     _ ->
       ok
@@ -98,14 +98,14 @@ init_schema() ->
 init_tables() ->
   create_table_imp(reference, [{disc_copies, [node()]},
       {attributes, record_info(fields, reference)}]),
-  create_table_imp(sysconf, [{disc_copies, [node()]}, 
+  create_table_imp(sysconf, [{disc_copies, [node()]},
       {attributes, record_info(fields, sysconf)}]),
   mnesia:wait_for_tables([reference, sysconf], 2500).
 
 create_table_imp(Table, Options) ->
   SchemaType = read_conf(mnesia_schema, ram),
   create_table_imp_new(Table, Options, SchemaType).
-  
+
 create_table_imp_new(Table, Options, ram) ->
   OptionsU = [{ram_copies, [node()]}|lists:filter(
         fun(X) ->
@@ -115,7 +115,7 @@ create_table_imp_new(Table, Options, ram) ->
               {ram_copies, _} -> false;
               _ -> true
             end
-        end, Options 
+        end, Options
         )],
   mnesia:create_table(Table, OptionsU);
 create_table_imp_new(Table, Options, _SchemaType) ->
