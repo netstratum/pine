@@ -22,7 +22,7 @@ ts_to_str({MegaSecs, Secs, MicroSecs}) ->
   {{YYYY, MM, DD}, {H, M, S}} = calendar:now_to_local_time({MegaSecs, Secs, MicroSecs}),
   MS = round(MicroSecs / 1000),
   lists:flatten(
-    io_lib:format("~4..0w-~2..0w-~2..0w ~2..0w:~2..0w:~2..0w.~3..0w", 
+    io_lib:format("~4..0w-~2..0w-~2..0w ~2..0w:~2..0w:~2..0w.~3..0w",
                   [YYYY, MM, DD, H, M, S, MS])).
 
 floor(X) when X < 0 ->
@@ -31,10 +31,10 @@ floor(X) when X < 0 ->
     true -> T;
     false -> T - 1
   end;
-floor(X) -> 
+floor(X) ->
   trunc(X).
- 
- 
+
+
 ceiling(X) when X < 0 ->
   trunc(X);
 ceiling(X) ->
@@ -75,11 +75,11 @@ int(C) when $A =< C, C =< $F ->
       C - $A + 10;
 int(C) when $a =< C, C =< $f ->
       C - $a + 10.
-    
+
 to_hex(N) when N < 256 ->
       [hex(N div 16), hex(N rem 16)].
- 
-list_to_hexstr([]) -> 
+
+list_to_hexstr([]) ->
       [];
 list_to_hexstr([H|T]) ->
       to_hex(H) ++ list_to_hexstr(T).
@@ -99,5 +99,5 @@ uptime() ->
   {UpTime, _} = erlang:statistics(wall_clock),
   {D, {H, M, S}} = calendar:seconds_to_daystime(UpTime div 1000),
   lists:flatten(
-    io_lib:format("~p days, ~p hours, ~p minutes and ~p seconds", 
+    io_lib:format("~p days, ~p hours, ~p minutes and ~p seconds",
                   [D,H,M,S])).

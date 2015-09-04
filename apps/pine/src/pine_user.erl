@@ -7,7 +7,7 @@
 -import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2]).
 
 -export([start_link/0, login/3, logout/3, validate/2]).
--export([init/1, handle_call/3, handle_cast/2, 
+-export([init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
@@ -63,7 +63,7 @@ init_tables() ->
                 {index, [user]}]},
      {session_log, [{disc_copies, [node()]},
                     {attributes, record_info(fields, session_log)}]},
-     {access_log, [{disc_copies, [node()]}, 
+     {access_log, [{disc_copies, [node()]},
                     {attributes, record_info(fields, access_log)}]}]
     ),
   mnesia:wait_for_tables([access, roles, users, sessions, session_log,
@@ -88,7 +88,7 @@ init_data() ->
       Password = read_conf(password, <<"pa55wdr00t">>),
       PassMd5 = md5(Password),
       mnesia:dirty_write(#users{id=UserUuid, name=User, role=RoleId,
-                                password=PassMd5, status=active, 
+                                password=PassMd5, status=active,
                                 created_on=Now, created_by = <<"sys">>});
     _ ->
       ok

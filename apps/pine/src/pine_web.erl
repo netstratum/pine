@@ -20,18 +20,18 @@ init([]) ->
   CERTFILE = read_conf(certfile),
   KEYFILE = read_conf(keyfile),
   case read_conf(secure_flag, false) of
-    true when CACERTFILE =/= undefined; CERTFILE =/= undefined; 
+    true when CACERTFILE =/= undefined; CERTFILE =/= undefined;
         KEYFILE =/= undefined ->
       PrivDir = code:priv_dir(pine),
-      TransOpts = [{port, Port}, 
+      TransOpts = [{port, Port},
                    {cacertfile, filename:join(PrivDir, CACERTFILE)},
                    {certfile, filename:join(PrivDir, CERTFILE)},
                    {keyfile, filename:join(PrivDir, KEYFILE)}],
-      cowboy:start_https(pine, PoolSize, TransOpts, 
+      cowboy:start_https(pine, PoolSize, TransOpts,
                          [{env, [{dispatch, Dispatch}]}]);
     _ ->
       TransOpts = [{port, Port}],
-      cowboy:start_http(pine, PoolSize, TransOpts, 
+      cowboy:start_http(pine, PoolSize, TransOpts,
                     [{env, [{dispatch, Dispatch}]}])
   end,
   {ok, ok}.

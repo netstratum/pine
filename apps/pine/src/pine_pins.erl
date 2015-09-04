@@ -26,7 +26,7 @@ burn_pin(Seq, EndUser) ->
   gen_server:call(?MODULE, {burn_pin, Seq, EndUser}).
 
 init([]) ->
-  random:seed(os:timestamp()), 
+  random:seed(os:timestamp()),
   init_tables(),
   {ok, ok}.
 
@@ -68,12 +68,12 @@ init_tables() ->
   mnesia:wait_for_tables([pins, usedpins], 2500).
 
 generate({PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber, SerialLength,
-          CountryCode, RegionCode, OrderId}, 
+          CountryCode, RegionCode, OrderId},
           OrderName, FaceValue, Quantity, Length, Form) ->
   random:seed(os:timestamp()),
   case file:open(OrderName, [write]) of
     {ok, Fd} ->
-      write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber}, 
+      write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber},
                    FaceValue, Quantity),
       write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId, Quantity, Length, Form),
       file:close(Fd);
@@ -81,7 +81,7 @@ generate({PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber, SerialLength,
       AnythingElse
   end.
 
-write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber}, 
+write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber},
              FaceValue, Quantity) ->
   io:format(Fd, "~s,~s,~s,~s,~p,~s~n", [FaceValue,
                                         PrinterCode,
@@ -93,17 +93,17 @@ write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber},
 write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId, Quantity, Length, Form) ->
   write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId, Quantity, Length, Form, 0).
 
-write_pins(_Fd, _SerialLength, _CountryCode, 
+write_pins(_Fd, _SerialLength, _CountryCode,
            _RegionCode, _OrderId, Quantity, _Length, numeric, Quantity) ->
   ok;
-write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId, 
+write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId,
            Quantity, Length, numeric, SerialNumber) ->
   Pin = lists:foldl(fun(_X, N) -> N * 10 + random:uniform(10) -1 end,
                            random:uniform(9), lists:seq(1, Length-1)),
-  Serial = CountryCode ++ RegionCode ++ OrderId ++ 
+  Serial = CountryCode ++ RegionCode ++ OrderId ++
            int_to_list_pad(SerialNumber + 1, SerialLength, $0),
   io:format(Fd, "~p,~s~n", [Pin, Serial]),
-  write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId, 
+  write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId,
              Quantity, Length, numeric, SerialNumber + 1).
 
 handle_load_file(Filename) ->
@@ -155,7 +155,7 @@ load_pins(Fd, Value, ExpiryEDate) ->
         [Pin, Seq] ->
           Id = uuid(),
           Now = os:timestamp(),
-          mnesia:dirty_write(#pins{id=Id, seq=list_to_binary(Seq), 
+          mnesia:dirty_write(#pins{id=Id, seq=list_to_binary(Seq),
                                    pin=list_to_binary(Pin),
                                    value=list_to_binary(Value), status=active,
                                    created_on=Now, expires_on=ExpiryEDate}),
@@ -186,7 +186,7 @@ handle_open_pin(Pin, EndUser) ->
           if
             PinRecord#pins.opened_by == EndUser,
                 EndUser =/= undefined ->
-              {ok, PinRecord#pins.seq, PinRecord#pins.value, 
+              {ok, PinRecord#pins.seq, PinRecord#pins.value,
                PinRecord#pins.opened_on};
             true ->
               {error, not_found}

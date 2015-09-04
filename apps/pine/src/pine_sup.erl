@@ -25,9 +25,9 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-  OtherChild = {pine_gen_event, {gen_event, start_link, 
+  OtherChild = {pine_gen_event, {gen_event, start_link,
     [{local, pine_gen_event}]}, permanent, 5000, worker, [dynamic]},
-  {ok, { {one_for_one, 5, 10}, [OtherChild, 
+  {ok, { {one_for_one, 5, 10}, [OtherChild,
                                 ?CHILD(pine_mnesia, worker),
                                 ?CHILD(pine_pins, worker),
                                 ?CHILD(pine_user, worker),

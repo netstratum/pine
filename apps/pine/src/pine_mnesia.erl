@@ -120,3 +120,4 @@ create_table_imp_new(Table, Options, ram) ->
   mnesia:create_table(Table, OptionsU);
 create_table_imp_new(Table, Options, _SchemaType) ->
   mnesia:create_table(Table, Options).
+

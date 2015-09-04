@@ -43,7 +43,7 @@ handle_info(_Info, State) ->
 	{ok, State}.
 
 terminate(_Arg, _State) ->
-	ok. 
+	ok.
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
@@ -58,8 +58,8 @@ get_cfgs(DstIdLs) ->
 get_cfgs([shell|DstIdLs], CfgLs) ->
   get_cfgs(DstIdLs, [shell|CfgLs]);
 get_cfgs([file|DstIdLs], CfgLs) ->
-  FileCfgs = [{Cfg, read_conf(Cfg, Def)}|| 
-      {Cfg, Def} <- [{log_path, "log/apps"}, 
+  FileCfgs = [{Cfg, read_conf(Cfg, Def)}||
+      {Cfg, Def} <- [{log_path, "log/apps"},
                      {log_prefix, "pine_"},
                      {log_extension, ".log"},
                      {log_size, 100},
@@ -102,7 +102,7 @@ get_filedst(FileCfgs) ->
       get_filedst(FileCfgs, {file, undefined, []});
     {TsOld, FcOld} ->
       SizeOld = get_filesize(FcOld, FileCfgs),
-      get_filedst(FileCfgs, {file, undefined, 
+      get_filedst(FileCfgs, {file, undefined,
                              [SizeOld, TsOld, FcOld]})
   end.
 
@@ -138,7 +138,7 @@ get_filedst(FileCfgs, {file, FdOld, [SizeOld, TsOld, FcOld]}) ->
 
 read_fileidx(FileCfgs) ->
   Path = get_value(log_path, FileCfgs),
-  Prefix = get_value(log_prefix, FileCfgs),   
+  Prefix = get_value(log_prefix, FileCfgs),
   IdxFile = Prefix ++ ?INDEX_FILE_EXTN,
   case file:read_file(filename:join(Path, IdxFile)) of
     {error, _Reason} ->
@@ -153,7 +153,7 @@ get_filesize(FileNum, FileCfgs) ->
 
 mk_filename(FileNum, FileCfgs) ->
   Path = get_value(log_path, FileCfgs),
-  Prefix = get_value(log_prefix, FileCfgs),   
+  Prefix = get_value(log_prefix, FileCfgs),
   SuffixLen = case get_value(log_rotation, FileCfgs) of
     N when is_integer(N) andalso N > 0 ->
       int_len(N);
@@ -176,7 +176,7 @@ is_refresh_req(FileCfgs, [Size, Ts]) ->
       no
   end.
 
-check_size_criteria(SizeCfg, Size) when is_integer(SizeCfg) 
+check_size_criteria(SizeCfg, Size) when is_integer(SizeCfg)
     andalso SizeCfg > 0 ->
   (SizeCfg * 1024 * 1024) =< Size;
 check_size_criteria(_SizeCfg, _Size) ->
@@ -207,20 +207,20 @@ create_file(FileCfgs, Fc, Options) ->
 
 write_fileidx(FileCfgs, [Ts, Fc]) ->
   Path = get_value(log_path, FileCfgs),
-  Prefix = get_value(log_prefix, FileCfgs),   
+  Prefix = get_value(log_prefix, FileCfgs),
   IdxFile = Prefix ++ ?INDEX_FILE_EXTN,
-  file:write_file(filename:join(Path, IdxFile), 
+  file:write_file(filename:join(Path, IdxFile),
                   term_to_binary({Ts, Fc})).
 
 send_log(Log, DstLs) ->
   send_log(Log, DstLs, []).
 
-send_log({Ts, Level, Type, Msg}, 
+send_log({Ts, Level, Type, Msg},
          [{file, Fd, [SizeOld, TsOld, FcOld]}|DstLs], DstLsU) ->
   write_log({Ts, Level, Type, Msg}, Fd),
   Len = length(Msg),
   Size = ceiling(Len / ?MAX_LINE_LEN) * ?MSG_PREFIX_LEN + Len,
-  send_log({Ts, Level, Type, Msg}, DstLs, 
+  send_log({Ts, Level, Type, Msg}, DstLs,
            [{file, Fd, [SizeOld + Size, TsOld, FcOld]}|DstLsU]);
 send_log({Ts, Level, Type, Msg}, [shell|DstLs],
          DstLsU) ->
@@ -231,9 +231,9 @@ send_log(_Log, [], DstLsU) ->
   lists:reverse(DstLsU).
 
 write_log({Ts, Level, Type, Msg}, Fd) ->
-  [io:format(Fd, "~s ~s ~s ~s~n", 
-             [ts_to_str(Ts), format_type(Type), 
-              format_level(Level), MsgPart]) 
+  [io:format(Fd, "~s ~s ~s ~s~n",
+             [ts_to_str(Ts), format_type(Type),
+              format_level(Level), MsgPart])
    || MsgPart <- split_message(Msg)].
 
 format_level(info) ->

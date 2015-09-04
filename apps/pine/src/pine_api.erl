@@ -1,6 +1,6 @@
 -module(pine_api).
 
--import(pine_tools, [encode_json/1, decode_json/1, hexstr_to_bin/1, 
+-import(pine_tools, [encode_json/1, decode_json/1, hexstr_to_bin/1,
                      bin_to_hexstr/1, ts_to_str/1]).
 
 -export([init/2]).
@@ -24,7 +24,7 @@ handle_post(<<"POST">>, true, Req) ->
     {StatusCode, []} ->
       cowboy_req:reply(StatusCode, [], [], Req2);
     {StatusCode, JsonResponse} ->
-      cowboy_req:reply(StatusCode, 
+      cowboy_req:reply(StatusCode,
              [{<<"content-type">>, <<"application/json; charset=utf-8">>}],
                        JsonResponse, Req2)
   end;
@@ -108,7 +108,7 @@ handle_command(<<"pin.open">>, Arguments, Token, Source) ->
                   {200, encode_json([{seq, Seq}, {value, Value}])};
                 {ok, Seq, Value, OpenedOn} ->
                   OpenedDate = list_to_binary(ts_to_str(OpenedOn)),
-                  {<<"250 AlreadyProcessed">>, encode_json([{seq, Seq}, 
+                  {<<"250 AlreadyProcessed">>, encode_json([{seq, Seq},
                                 {value, Value}, {opened_on, OpenedDate}])}
               end
           end
@@ -188,4 +188,4 @@ handle_command(FunctionName, Arguments, Token, Source) ->
 %     is_binary(Key) -> list_to_atom(binary_to_list(Key))
 %   end,
 %   case pine_mnesia:update_conf(KeyAtom, Value, User) of
-% 
+
