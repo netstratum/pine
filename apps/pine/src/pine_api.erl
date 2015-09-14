@@ -3,30 +3,37 @@
 -import(pine_tools, [encode_json/1, decode_json/1, hexstr_to_bin/1,
                      bin_to_hexstr/1, ts_to_str/1]).
 
--export([init/2]).
+-export([init/3, handle/2, terminate/3]).
 
 -include("pine_mnesia.hrl").
 
-init(Req, Opts) ->
-  Method = cowboy_req:method(Req),
-  HasBody = cowboy_req:has_body(Req),
-  Res = handle_post(Method, HasBody, Req),
-  {ok, Res, Opts}.
+init(_Transport, Req, []) ->
+  {ok, Req, undefined}.
+
+handle(Req, State) ->
+  {Method, Req2} = cowboy_req:method(Req),
+  HasBody = cowboy_req:has_body(Req2),
+  {ok, Req3} = handle_post(Method, HasBody, Req2),
+  io:format("Req3 here is ~p~n", [Req3]),
+  {ok, Req3, State}.
+
+terminate(_Reason, _Req, _State) ->
+  ok.
 
 handle_post(<<"POST">>, true, Req) ->
   {ok, Arguments, Req2} = cowboy_req:body_qs(Req),
-  Token = cowboy_req:header(<<"x-pine-token">>, Req2),
-  {Source, _Port} = cowboy_req:peer(Req2),
+  {Token, Req3} = cowboy_req:header(<<"x-pine-token">>, Req2),
+  {{Source,_Port}, Req4} = cowboy_req:peer(Req3),
   case catch handle_command(Arguments, Token, Source) of
     {'EXIT', Reason} ->
       io:format("Exception ~p~n", [Reason]),
-      cowboy_req:reply(500, Req);
+      cowboy_req:reply(500, Req4);
     {StatusCode, []} ->
-      cowboy_req:reply(StatusCode, [], [], Req2);
+      cowboy_req:reply(StatusCode, [], [], Req4);
     {StatusCode, JsonResponse} ->
       cowboy_req:reply(StatusCode,
              [{<<"content-type">>, <<"application/json; charset=utf-8">>}],
-                       JsonResponse, Req2)
+                       JsonResponse, Req4)
   end;
 handle_post(<<"POST">>, false, Req) ->
   cowboy_req:reply(400, [], encode_json({failed_reason, <<"Missing body.">>}), Req);
