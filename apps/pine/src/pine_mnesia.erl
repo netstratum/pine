@@ -100,7 +100,9 @@ init_tables() ->
       {attributes, record_info(fields, reference)}]),
   create_table_imp(sysconf, [{disc_copies, [node()]},
       {attributes, record_info(fields, sysconf)}]),
-  mnesia:wait_for_tables([reference, sysconf], 2500).
+  create_table_imp(api_handlers, [{ram_copies, [node()]},
+      {attributes, record_info(fields, api_handlers)}]),
+  mnesia:wait_for_tables([reference, sysconf, api_handlers], 2500).
 
 create_table_imp(Table, Options) ->
   SchemaType = read_conf(mnesia_schema, ram),

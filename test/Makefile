@@ -1,7 +1,7 @@
 .PHONY: all clean compile deps console
 
 all: deps compile
-
+interact: clean compile console
 compile:
 	@rebar compile
 

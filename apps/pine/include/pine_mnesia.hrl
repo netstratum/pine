@@ -96,7 +96,7 @@
     function,
     arguments,
     handler,
-    status,
+    statusCodes,
     created_on,
     modified_on
   }).

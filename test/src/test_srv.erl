@@ -7,7 +7,7 @@
     url
   }).
 
--export([start/0, start/2, stop/1]).
+-export([start/0, start/2, stop/1, open_pin/2, close_pin/2, burn_pin/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -24,6 +24,15 @@ start(Name, {Url, Username, Password}) ->
 stop(Name) ->
   gen_server:cast(Name, stop).
 
+open_pin(Name, {Pin, EndUser}) ->
+  gen_server:call(Name, {open_pin, Pin, EndUser}).
+
+close_pin(Name, {Seq, EndUser}) ->
+  gen_server:call(Name, {close_pin, Seq, EndUser}).
+
+burn_pin(Name, {Seq, EndUser}) ->
+  gen_server:call(Name, {burn_pin, Seq, EndUser}).
+
 init([Url, Username, Password]) ->
   case test_api:login(Url, Username, Password) of
     {ok, Token} ->
@@ -32,11 +41,20 @@ init([Url, Username, Password]) ->
       {stop, Reason}
   end.
 
+handle_call({open_pin, Pin, EndUser}, _From, State) ->
+  Reply = test_api:open_pin(State#state.url, State#state.token, Pin, EndUser),
+  {reply, Reply, State};
+handle_call({close_pin, Seq, EndUser}, _From, State) ->
+  Reply = test_api:close_pin(State#state.url, State#state.token, Seq, EndUser),
+  {reply, Reply, State};
+handle_call({burn_pin, Seq, EndUser}, _From, State) ->
+  Reply = test_api:burn_pin(State#state.url, State#state.token, Seq, EndUser),
+  {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
 handle_cast(stop, State) ->
-  test_api:logout(State#state.url, State#state.username, State#state.token),
+  test_api:logout(State#state.url, State#state.token, State#state.username),
   {stop, normal, State};
 handle_cast(_Request, State) ->
   {noreply, State}.

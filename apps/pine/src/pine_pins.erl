@@ -3,10 +3,11 @@
 
 -include("pine_mnesia.hrl").
 
--import(pine_tools, [uuid/0, int_to_list_pad/3]).
+-import(pine_tools, [uuid/0, int_to_list_pad/3, ts_to_bin/1]).
 -import(pine_mnesia, [create_table/2]).
 
 -export([generate/6, load_file/1, open_pin/2, close_pin/2, burn_pin/2]).
+-export([open_pin_api/1, close_pin_api/1, burn_pin_api/1]).
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          code_change/3, terminate/2]).
 
@@ -16,11 +17,34 @@ start_link() ->
 load_file(Filename) ->
   gen_server:call(?MODULE, {load_file, Filename}).
 
+open_pin_api(#{pin:=Pin, opened_by:=EndUser}) ->
+  case open_pin(Pin, EndUser) of
+    {ok, Seq, Value} ->
+      {ok, [{seq, Seq}, {value, Value}]};
+    {ok, Seq, Value, OpenedOn} ->
+      OpenedDate = ts_to_bin(OpenedOn),
+      {<<"250 AlreadyProcessed">>,
+       [{seq, Seq}, {value, Value}, {opened_on, OpenedDate}]};
+    Error ->
+      Error
+  end.
+
 open_pin(Pin, EndUser) ->
   gen_server:call(?MODULE, {open_pin, Pin, EndUser}).
 
+close_pin_api(#{seq:=Seq, opened_by:=EndUser}) ->
+  close_pin(Seq, EndUser).
+
 close_pin(Seq, EndUser) ->
   gen_server:call(?MODULE, {close_pin, Seq, EndUser}).
+
+burn_pin_api(#{seq:=Seq, opened_by:=EndUser}) ->
+  case burn_pin(Seq, EndUser) of
+    {ok, Info} ->
+      {ok, {info, Info}};
+    AnythingElse ->
+      AnythingElse
+  end.
 
 burn_pin(Seq, EndUser) ->
   gen_server:call(?MODULE, {burn_pin, Seq, EndUser}).
@@ -28,6 +52,7 @@ burn_pin(Seq, EndUser) ->
 init([]) ->
   random:seed(os:timestamp()),
   init_tables(),
+  init_api(),
   {ok, ok}.
 
 handle_call({load_file, Filename}, _From, State) ->
@@ -66,6 +91,18 @@ init_tables() ->
                  {index, [seq, pin]}]}]
     ),
   mnesia:wait_for_tables([pins, usedpins], 2500).
+
+init_api() ->
+  Now = os:timestamp(),
+  mnesia:dirty_write(#api_handlers{function = <<"pin.open">>,
+                                   arguments = [pin, opened_by],
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function = <<"pin.close">>,
+                                   arguments = [seq, opened_by],
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function = <<"pin.burn">>,
+                                   arguments = [seq, opened_by],
+                                   created_on = Now}).
 
 generate({PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber, SerialLength,
           CountryCode, RegionCode, OrderId},
