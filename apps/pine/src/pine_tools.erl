@@ -48,7 +48,8 @@ ts_to_bin(ErlangNow) ->
   list_to_binary(ts_to_str(ErlangNow)).
 
 ts_to_str({MegaSecs, Secs, MicroSecs}) ->
-  {{YYYY, MM, DD}, {H, M, S}} = calendar:now_to_local_time({MegaSecs, Secs, MicroSecs}),
+  {{YYYY, MM, DD}, {H, M, S}} =
+    calendar:now_to_local_time({MegaSecs, Secs, MicroSecs}),
   MS = round(MicroSecs / 1000),
   lists:flatten(
     io_lib:format("~4..0w-~2..0w-~2..0w ~2..0w:~2..0w:~2..0w.~3..0w",
