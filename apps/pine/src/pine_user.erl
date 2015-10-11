@@ -4,35 +4,17 @@
 -include("pine_mnesia.hrl").
 
 -import(pine_mnesia, [create_table/2, read_conf/2]).
--import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2,
-                     hexbin_to_bin/1, bin_to_hexbin/1]).
+-import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2]).
 
 -export([start_link/0, login/3, logout/3, validate/2]).
--export([login_api/1, logout_api/1]).
 -export([init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-login_api(#{username:=Username,
-            password:=Password,
-            http_source:=Source}) ->
-  PasswordBin = hexbin_to_bin(Password),
-  case login(Username, PasswordBin, Source) of
-    {ok, Cookie} ->
-      {ok, {'x-pine-token', bin_to_hexbin(Cookie)}};
-    Error ->
-      Error
-  end.
-
 login(Username, Password, Source) ->
   gen_server:call(?MODULE, {login, Username, Password, Source}).
-
-logout_api(#{username:=Username,
-             http_token:=Cookie,
-             http_source:=Source}) ->
-  logout(Username, Cookie, Source).
 
 logout(Username, Cookie, Source) ->
   gen_server:call(?MODULE, {logout, Username, Cookie, Source}).
@@ -43,7 +25,6 @@ validate(Cookie, Source) ->
 init([]) ->
   init_tables(),
   init_data(),
-  init_api(),
   {ok, ok}.
 
 handle_call({login, Username, Password, Source}, _From, State) ->
@@ -112,17 +93,6 @@ init_data() ->
     _ ->
       ok
   end.
-
-init_api() ->
-  Now = os:timestamp(),
-  mnesia:dirty_write(#api_handlers{function = <<"identity.user.login">>,
-                                   arguments = [username, password],
-                                   handler = {?MODULE, login_api},
-                                   created_on = Now}),
-  mnesia:dirty_write(#api_handlers{function = <<"identity.user.logout">>,
-                                   arguments = [username],
-                                   handler = {?MODULE, logout_api},
-                                   created_on = Now}).
 
 handle_login(Username, Password, Source) ->
   case mnesia:dirty_index_read(users, Username, #users.name) of

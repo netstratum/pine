@@ -1,7 +1,7 @@
 -module(pine_api).
 
 -import(pine_tools, [encode_params/1, decode_params/1, hexstr_to_bin/1,
-                     bin_to_hexstr/1, ts_to_str/1, get_missing/2, to/2]).
+                     get_missing/2, to/2]).
 
 -export([init/3, handle/2, terminate/3]).
 
@@ -60,7 +60,8 @@ handle_command([{Arguments,_True}], TokenHexString, Source) ->
 handle_command(FunctionName, ParamsList) ->
   case mnesia:dirty_read(api_handlers, FunctionName) of
     [] ->
-      handle_command_direct(FunctionName, ParamsList);
+      io:format("API - ~p - ~p ~n", [FunctionName, ParamsList]),
+      {200, []};
     [ApiHandlerRec] ->
       handle_command_specs(ApiHandlerRec, ParamsList)
   end.
@@ -94,131 +95,4 @@ handle_command_specs(ApiHandlerRec, ParamsList) ->
       {400, encode_params({failed_reason,
                            list_to_binary("missing "++MissingParamString)})}
   end.
-
-handle_command_direct(<<"identity.user.login">>, Arguments) ->
-  io:format("identity.user.login - ~p ~n", [Arguments]),
-  {_, Source} = lists:keyfind(http_source, 1, Arguments),
-  case lists:keyfind(<<"username">>, 1, Arguments) of
-    false ->
-      {400, encode_params({failed_reason, <<"missing username">>})};
-    {_, UsernameBin} ->
-      case lists:keyfind(<<"password">>, 1, Arguments) of
-        false ->
-          {400, encode_params({failed_reason, <<"missing password">>})};
-        {_, PasswordHexBin} ->
-          case catch hexstr_to_bin(binary_to_list(PasswordHexBin)) of
-            {'EXIT', Reason} ->
-              io:format("Exception ~p~n", [Reason]),
-              {400, encode_params({failed_reason, <<"require hashed password">>})};
-            PasswordBin ->
-              case pine_user:login(UsernameBin, PasswordBin, Source) of
-                {error, Reason} ->
-                  {400, encode_params({failed_reason, Reason})};
-                {ok, Cookie} ->
-                  CookieBin = list_to_binary(bin_to_hexstr(Cookie)),
-                  io:format("CookieBin here is ~p~n", [CookieBin]),
-                  {200, encode_params({'x-pine-token', CookieBin})}
-              end
-          end
-      end
-  end;
-handle_command_direct(<<"identity.user.logout">>, Arguments) ->
-  {_, Token} = lists:keyfind(http_token, 1, Arguments),
-  {_, Source} = lists:keyfind(http_source, 1, Arguments),
-  io:format("identity.user.logout - ~p ~p ~p ~n", [Arguments, Token, Source]),
-  case lists:keyfind(<<"username">>, 1, Arguments) of
-    false ->
-      {400, encode_params({failed_reason, <<"missing username">>})};
-    {_, UsernameBin} ->
-      case pine_user:logout(UsernameBin, Token, Source) of
-        {error, Reason} ->
-          {400, encode_params({failed_reason, Reason})};
-        ok ->
-          {200, []}
-      end
-  end;
-handle_command_direct(<<"pin.open">>, Arguments) ->
-  {_, Token} = lists:keyfind(http_token, 1, Arguments),
-  {_, Source} = lists:keyfind(http_source, 1, Arguments),
-  io:format("pin.open - ~p ~p ~p ~n", [Arguments, Token, Source]),
-  case pine_user:validate(Token, Source) of
-    {error, Reason} ->
-      {401, encode_params({failed_reason, Reason})};
-    {ok, _User} ->
-      case lists:keyfind(pin, 1, Arguments) of
-        false ->
-          {400, encode_params({failed_reason, <<"missing pin">>})};
-        {_, PinBin} ->
-          case lists:keyfind(opened_by, 1, Arguments) of
-            false ->
-              {400, encode_params({failed_reason, <<"missing opened_by">>})};
-            {_, OpenedByBin} ->
-              case pine_pins:open_pin(PinBin, OpenedByBin) of
-                {error, Reason} ->
-                  {400, encode_params({failed_reason, Reason})};
-                {ok, Seq, Value} ->
-                  {200, encode_params([{seq, Seq}, {value, Value}])};
-                {ok, Seq, Value, OpenedOn} ->
-                  OpenedDate = list_to_binary(ts_to_str(OpenedOn)),
-                  {<<"250 AlreadyProcessed">>, encode_params([{seq, Seq},
-                                {value, Value}, {opened_on, OpenedDate}])}
-              end
-          end
-      end
-  end;
-handle_command_direct(<<"pin.close">>, Arguments) ->
-  {_, Token} = lists:keyfind(http_token, 1, Arguments),
-  {_, Source} = lists:keyfind(http_source, 1, Arguments),
-  io:format("pin.close - ~p ~p ~p ~n", [Arguments, Token, Source]),
-  case pine_user:validate(Token, Source) of
-    {error, Reason} ->
-      {401, encode_params({failed_reason, Reason})};
-    {ok, _User} ->
-      case lists:keyfind(seq, 1, Arguments) of
-        false ->
-          {400, encode_params({failed_reason, <<"missing seq">>})};
-        {_, SeqBin} ->
-          case lists:keyfind(opened_by, 1, Arguments) of
-            false ->
-              {400, encode_params({failed_reason, <<"missing opened_by">>})};
-            {_, OpenedByBin} ->
-              case pine_pins:close_pin(SeqBin, OpenedByBin) of
-                {error, Reason} ->
-                  {400, encode_params({failed_reason, Reason})};
-                ok ->
-                  {200, []}
-              end
-          end
-      end
-  end;
-handle_command_direct(<<"pin.burn">>, Arguments) ->
-  {_, Token} = lists:keyfind(http_token, 1, Arguments),
-  {_, Source} = lists:keyfind(http_source, 1, Arguments),
-  io:format("pin.burn ~p ~p ~p ~n", [Arguments, Token, Source]),
-  case pine_user:validate(Token, Source) of
-    {error, Reason} ->
-      {401, encode_params({failed_reason, Reason})};
-    {ok, _User} ->
-      case lists:keyfind(seq, 1, Arguments) of
-        false ->
-          {400, encode_params({failed_reason, <<"missing seq">>})};
-        {_, SeqBin} ->
-          case lists:keyfind(opened_by, 1, Arguments) of
-            false ->
-              {400, encode_params({failed_reason, <<"missing opened_by">>})};
-            {_, OpenedByBin} ->
-              case pine_pins:burn_pin(SeqBin, OpenedByBin) of
-                {error, Reason} ->
-                  {400, encode_params({failed_reason, Reason})};
-                ok ->
-                  {200, []};
-                {ok, Info} ->
-                  {200, encode_params({info, Info})}
-              end
-          end
-      end
-  end;
-handle_command_direct(FunctionName, Arguments) ->
-  io:format("API - ~p - ~p ~n", [FunctionName, Arguments]),
-  {200, []}.
 
