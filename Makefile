@@ -39,3 +39,4 @@ rpm:
 deb:
 	@mkdir -p pkg/deb/
 	@fpm -s dir -t deb -n pine -v 0.1 -C rel -p pine-VERSION_ARCH.rpm --prefix /opt --description "PIN generation and management Engine" --deb-user pine --deb-group pine --deb-compression gz --before-install pkg/files/before_install.sh --after-install pkg/files/after_install.sh --after-remove pkg/files/after_remove.sh -p pkg/deb/ pine
+
