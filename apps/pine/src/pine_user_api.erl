@@ -3,10 +3,10 @@
 
 -include("pine_mnesia.hrl").
 
--import(pine_user, [login/3, logout/3]).
+-import(pine_user, [login/3, logout/3, chpassword/5]).
 -import(pine_tools, [hexbin_to_bin/1, bin_to_hexbin/1]).
 
--export([start_link/0, login_api/1, logout_api/1]).
+-export([start_link/0, login_api/1, logout_api/1, chpassword_api/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -29,6 +29,16 @@ logout_api(#{username:=Username,
              http_source:=Source}) ->
   logout(Username, Cookie, Source).
 
+chpassword_api(#{username:=Username,
+                 oldpassword:=OldPassword,
+                 newpassword:=NewPassword,
+                 http_token:=Cookie,
+                 http_source:=Source}) ->
+  OldPasswordBin = if OldPassword == [] -> <<>>;
+                      true -> hexbin_to_bin(OldPassword)
+                   end,
+  NewPasswordBin = hexbin_to_bin(NewPassword),
+  chpassword(Cookie, Source, Username, OldPasswordBin, NewPasswordBin).
 
 init([]) ->
   init_api(),
@@ -43,6 +53,12 @@ init_api() ->
   mnesia:dirty_write(#api_handlers{function = <<"identity.user.logout">>,
                                    arguments = [username],
                                    handler = {?MODULE, logout_api},
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function =
+                                   <<"identity.user.changepassword">>,
+                                   arguments = [username, oldpassword,
+                                                newpassword],
+                                   handler = {?MODULE, chpassword_api},
                                    created_on = Now}).
 
 handle_call(_Request, _From, State) ->

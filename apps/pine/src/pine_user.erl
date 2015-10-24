@@ -6,7 +6,7 @@
 -import(pine_mnesia, [create_table/2, read_conf/2]).
 -import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2]).
 
--export([start_link/0, login/3, logout/3, validate/2]).
+-export([start_link/0, login/3, logout/3, validate/2, chpassword/5]).
 -export([init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
@@ -22,6 +22,10 @@ logout(Username, Cookie, Source) ->
 validate(Cookie, Source) ->
   gen_server:call(?MODULE, {validate, Cookie, Source}).
 
+chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
+  gen_server:call(?MODULE, {chpassword, Cookie, Source,
+                            Username, OldPassword, NewPassword}).
+
 init([]) ->
   init_tables(),
   init_data(),
@@ -35,6 +39,10 @@ handle_call({logout, Username, Cookie, Source}, _From, State) ->
   {reply, Reply, State};
 handle_call({validate, Cookie, Source}, _From, State) ->
   Reply = handle_validate(Cookie, Source),
+  {reply, Reply, State};
+handle_call({chpassword, Cookie, Source, Username, OldPassword, NewPassword},
+            _From, State) ->
+  Reply = handle_chpassword(Cookie, Source, Username, OldPassword, NewPassword),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -153,5 +161,50 @@ handle_validate(Cookie, Source) ->
           end;
         true ->
           {error, not_authorized}
+      end
+  end.
+
+handle_chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
+  case mnesia:dirty_read(sessions, Cookie) of
+    [] ->
+      {error, no_session};
+    [SessionRecord] ->
+      if
+        SessionRecord#sessions.source == Source,
+        SessionRecord#sessions.user == Username ->
+          handle_chpassword_self(Username, OldPassword, NewPassword);
+        SessionRecord#sessions.source == Source ->
+          handle_chpassword_other(Username, NewPassword, SessionRecord#sessions.user);
+        true ->
+          {error, not_authorized}
+      end
+  end.
+
+handle_chpassword_self(Username, OldPassword, NewPassword) ->
+  [UserRecord] = mnesia:dirty_index_read(users, Username, #users.name),
+  if
+    UserRecord#users.password == OldPassword;
+    OldPassword =/= NewPassword ->
+      Now = os:timestamp(),
+      mnesia:dirty_write(UserRecord#users{password=NewPassword,
+                                          modified_on=Now,
+                                          modified_by=Username});
+    true ->
+      {error, wrong_password}
+  end.
+
+handle_chpassword_other(Username, Password, ModifiedBy) ->
+  case mnesia:dirty_index_read(users, Username, #users.name) of
+    [] ->
+      {error, not_found};
+    [UserRecord] ->
+      if
+        UserRecord#users.password == Password ->
+          {error, wrong_password};
+        true ->
+          Now = os:timestamp(),
+          mnesia:dirty_write(UserRecord#users{password=Password,
+                                              modified_on=Now,
+                                              modified_by=ModifiedBy})
       end
   end.
