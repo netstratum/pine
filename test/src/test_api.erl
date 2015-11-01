@@ -1,6 +1,6 @@
 -module(test_api).
 -export([login/3, logout/3, open_pin/4,
-         close_pin/4, burn_pin/4]).
+         close_pin/4, burn_pin/4, change_password/5]).
 
 login(Url, Username, Password) ->
   RequestBody = test_tools:encode_json(
@@ -78,3 +78,28 @@ burn_pin(Url, Token, Seq, EndUser) ->
     {error, Reason} ->
       {error, Reason}
   end.
+
+change_password(Url, Token, Username, OldPassword, NewPassword) ->
+  RequestBody = test_tools:encode_json([
+                  {function, <<"identity.user.changePassword">>},
+                  {username, list_to_binary(Username)},
+                  {oldpassword,
+                   list_to_binary(
+                      test_tools:bin_to_hexstr(erlang:md5(OldPassword))
+                    )
+                  },
+                  {newpassword,
+                   list_to_binary(
+                     test_tools:bin_to_hexstr(erlang:md5(NewPassword))
+                    )
+                  }]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+

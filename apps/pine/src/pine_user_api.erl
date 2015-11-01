@@ -3,10 +3,12 @@
 
 -include("pine_mnesia.hrl").
 
--import(pine_user, [login/3, logout/3, chpassword/5]).
--import(pine_tools, [hexbin_to_bin/1, bin_to_hexbin/1]).
+-import(pine_user, [login/3, logout/3, chpassword/5, adduser/8]).
+-import(pine_tools, [hexbin_to_bin/1, bin_to_hexbin/1,
+                     try_find_map/2]).
 
--export([start_link/0, login_api/1, logout_api/1, chpassword_api/1]).
+-export([start_link/0, login_api/1, logout_api/1, chpassword_api/1,
+         adduser_api/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -39,6 +41,18 @@ chpassword_api(#{username:=Username,
                    end,
   NewPasswordBin = hexbin_to_bin(NewPassword),
   chpassword(Cookie, Source, Username, OldPasswordBin, NewPasswordBin).
+
+adduser_api(#{name:=Name,
+               email:=EmailAddress,
+               password:=Password,
+               role:=RoleId,
+               http_token:=Cookie,
+               http_source:=Source} = Maps) ->
+  Notes = try_find_map(notes, Maps),
+  Expiry = try_find_map(expiry, Maps),
+  PasswordBin = hexbin_to_bin(Password),
+  adduser(Cookie, Source, Name, Notes,
+          EmailAddress, PasswordBin, RoleId, Expiry).
 
 init([]) ->
   init_api(),

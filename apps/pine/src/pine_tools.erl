@@ -2,6 +2,8 @@
 -export([encode_json/1,
          decode_json/1,
          timestamp_diff_seconds/2,
+         now_to_seconds/1,
+         did_it_happen/3,
          ts_to_str/1,
          floor/1,
          ceiling/1,
@@ -21,7 +23,8 @@
          decode_params/1,
          hexbin_to_bin/1,
          bin_to_hexbin/1,
-         ts_to_bin/1]).
+         ts_to_bin/1,
+         try_find_map/2]).
 
 encode_params(ErlangParams) ->
   encode_json(ErlangParams).
@@ -41,8 +44,15 @@ decode_json(JsonBinary) ->
   {ErlangTerm} = jiffy:decode(JsonBinary),
   ErlangTerm.
 
-timestamp_diff_seconds({ToMega, ToSec, _}, {FromMega, FromSec, _}) ->
-  (ToMega*1000000 + ToSec) - (FromMega*1000000 + FromSec).
+now_to_seconds({Mega, Sec, _}) ->
+  Mega*1000000 + Sec.
+
+timestamp_diff_seconds(ToTS, FromTS) ->
+  now_to_seconds(ToTS) - now_to_seconds(FromTS).
+
+did_it_happen(In, From, To) ->
+  (now_to_seconds(From) < now_to_seconds(In)) andalso
+  (now_to_seconds(In) < now_to_seconds(To)).
 
 ts_to_bin(ErlangNow) ->
   list_to_binary(ts_to_str(ErlangNow)).
@@ -241,3 +251,10 @@ get_missing(List, ParamList) when is_list(List) ->
     ParamList
    ).
 
+try_find_map(Key, Map) ->
+  case maps:find(Key, Map) of
+    error ->
+      undefined;
+    {ok, Value} ->
+      Value
+  end.

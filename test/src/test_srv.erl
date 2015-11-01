@@ -7,7 +7,8 @@
     url
   }).
 
--export([start/0, start/2, stop/1, open_pin/2, close_pin/2, burn_pin/2]).
+-export([start/0, start/2, stop/1, open_pin/2, close_pin/2, burn_pin/2,
+         change_password/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -33,6 +34,12 @@ close_pin(Name, {Seq, EndUser}) ->
 burn_pin(Name, {Seq, EndUser}) ->
   gen_server:call(Name, {burn_pin, Seq, EndUser}).
 
+change_password(Name, {Username, OldPassword, NewPassword}) ->
+  gen_server:call(Name, {change_password,
+                         Username,
+                         OldPassword,
+                         NewPassword}).
+
 init([Url, Username, Password]) ->
   case test_api:login(Url, Username, Password) of
     {ok, Token} ->
@@ -49,6 +56,13 @@ handle_call({close_pin, Seq, EndUser}, _From, State) ->
   {reply, Reply, State};
 handle_call({burn_pin, Seq, EndUser}, _From, State) ->
   Reply = test_api:burn_pin(State#state.url, State#state.token, Seq, EndUser),
+  {reply, Reply, State};
+handle_call({change_password, Username, OldPassword, NewPassword}, _From, State) ->
+  Reply = test_api:change_password(State#state.url,
+                                   State#state.token,
+                                   Username,
+                                   OldPassword,
+                                   NewPassword),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
