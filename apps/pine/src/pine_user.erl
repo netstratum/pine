@@ -1,51 +1,141 @@
+%%%=======================================================================%%%
+%%% PIN Engine : User Management Module
+%%%=======================================================================%%%
 -module(pine_user).
 -behaviour(gen_server).
 
+%% Mnesia table definitions
 -include("pine_mnesia.hrl").
 
+%% Frequently used imports
 -import(pine_mnesia, [create_table/2, read_conf/2]).
 -import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2,
                      did_it_happen/3]).
 
+%% API functions
 -export([start_link/0, login/3, logout/3, validate/2, chpassword/5,
          adduser/8, modifyuser/8, listusers/4, searchusers/8,
          getuserinfo/3]).
+
+%% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
+
+%%=======================================================================%%
+%% API functions
+%%=======================================================================%%
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Starts the server
+%%
+%% @spec start_link() -> {ok, Pid} | ignore | {error, Reason}
+%% @end
 
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% User logs-in
+%%
+%% @spec login(Username, Password, Source) -> {ok, Token} | {error, Reason}
+%% @end
+
 login(Username, Password, Source) ->
   gen_server:call(?MODULE, {login, Username, Password, Source}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% User Logs-out
+%%
+%% @spec logout(Username, Cookie, Source) -> ok | {error, Reason}
+%% @end
 
 logout(Username, Cookie, Source) ->
   gen_server:call(?MODULE, {logout, Username, Cookie, Source}).
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Validate user session
+%%
+%% @spec validate(Cookie, Source) -> ok | {error, Reason}
+%% @end
+
 validate(Cookie, Source) ->
   gen_server:call(?MODULE, {validate, Cookie, Source}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Change Password
+%%
+%% @spec chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
+%%                  ok | {error, Reason}
+%% @end
 
 chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
   gen_server:call(?MODULE, {chpassword, Cookie, Source,
                             Username, OldPassword, NewPassword}).
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Add User
+%%
+%% @spec adduser(Cookie, Source, Name, Notes, EmailAddress, Password,
+%%               RoleId, Expiry) -> ok | {error, Reason}
+%% @end
 
 adduser(Cookie, Source, Name, Notes, EmailAddress,
         Password, RoleId, Expiry) ->
   gen_server:call(?MODULE, {adduser, Cookie, Source, Name, Notes,
                             EmailAddress, Password, RoleId, Expiry}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Modify User Info
+%%
+%% @spec modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId)
+%%              -> ok | {error, Reason}
+%% @end
+
 modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId) ->
   gen_server:call(?MODULE, {modifyuser, Cookie, Source, Id, Name,
                             Notes, Email, Expiry, RoleId}).
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% List Users
+%%
+%% @spec listusers(Cookie, Source, PageNo, PageSize) ->
+%%                 {ok, UsersInfoList} | {error, Reason}
+%% @end
 
 listusers(Cookie, Source, PageNo, PageSize) ->
   gen_server:call(?MODULE, {listusers, Cookie, Source, PageNo, PageSize}).
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Search Users
+%%
+%% @spec searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo,
+%%                   PageSize) -> {ok, UserIdList} | {error, Reason}
+%% @end
+
 searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo, PageSize) ->
   gen_server:call(?MODULE, {searchusers, Cookie, Source, Name, Email,
                             StartTS, EndTS, PageNo, PageSize}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Get a User Info
+%%
+%% @spec getuserinfo(Cookie, Source, Id) -> {ok, UserInfo} | {error, Reason}
+%% @end
+
 getuserinfo(Cookie, Source, Id) ->
   gen_server:call(?MODULE, {getuserinfo, Cookie, Source, Id}).
 
+%%=======================================================================%%
+%% gen_server callbacksf
+%%=======================================================================%%
 init([]) ->
   init_tables(),
   init_data(),
@@ -99,6 +189,9 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+%%=======================================================================%%
+%% Internal Functions
+%%=======================================================================%%
 init_tables() ->
   lists:map(
     fun({Table, Options}) -> create_table(Table, Options) end,

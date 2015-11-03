@@ -1,4 +1,9 @@
+%%%=======================================================================%%%
+%%% PIN Engine : Utility Tools (pure funtions)
+%%%=======================================================================%%%
 -module(pine_tools).
+
+%% API functions
 -export([encode_json/1,
          decode_json/1,
          timestamp_diff_seconds/2,
@@ -26,8 +31,25 @@
          ts_to_bin/1,
          try_find_map/2]).
 
+%%=======================================================================%%
+%% API functions
+%%=======================================================================%%
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Encode erlang param list to json
+%%
+%% @spec encode_params(ErlangParams) -> JsonParams
+%% @end
+
 encode_params(ErlangParams) ->
   encode_json(ErlangParams).
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Encode erlang term to json
+%%
+%% @spec encode_json(ErlangTerm) -> JsonTerm
+%% @end
 
 encode_json(ErlangTerm) when is_tuple(ErlangTerm) ->
   jiffy:encode({[ErlangTerm]});
@@ -36,14 +58,31 @@ encode_json(ErlangTerm) when is_list(ErlangTerm) ->
 encode_json(ErlangTerm) ->
   jiffy:encode(ErlangTerm).
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Decode json to erlang param list
+%%
+%% @spec decode_params(JsonParams) -> ErlangTermList
+%% @end
 decode_params(JsonParams) ->
   ErlangParams = decode_json(JsonParams),
   [{to(atom, Param), Value} || {Param, Value} <- ErlangParams].
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Decode json to erlang term
+%%
+%% @spec decode_json(JsonParams) -> ErlangTerm
+%% @end
 decode_json(JsonBinary) ->
   {ErlangTerm} = jiffy:decode(JsonBinary),
   ErlangTerm.
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Convert erlang timestamp to seconds
+%%
+%%
 now_to_seconds({Mega, Sec, _}) ->
   Mega*1000000 + Sec.
 
