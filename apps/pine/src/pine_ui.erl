@@ -7,7 +7,7 @@ init(Type, Req, Opts) ->
 
 handle(Req, State) ->
   pine_log:notify(10, ["handle", Req, State]),
-  {ok, Req2} = cowboy_req:reply(200, 
+  {ok, Req2} = cowboy_req:reply(200,
        [{<<"content-type">>, <<"text/plain">>}], <<"Under Construction">>, Req),
   pine_log:notify(10, ["handle result", Req2]),
   {ok, Req2, State}.

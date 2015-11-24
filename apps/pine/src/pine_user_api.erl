@@ -73,6 +73,12 @@ init_api() ->
                                    arguments = [username, oldpassword,
                                                 newpassword],
                                    handler = {?MODULE, chpassword_api},
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function =
+                                   <<"identity.user.add">>,
+                                   arguments = [name, email, password,
+                                                role],
+                                   handler = {?MODULE, adduser_api},
                                    created_on = Now}).
 
 handle_call(_Request, _From, State) ->
