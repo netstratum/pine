@@ -294,6 +294,7 @@ handle_validate(Cookie, Source) ->
   end.
 
 handle_chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
+  io:format("changing password ~p, ~p, ~p~n", [Username, OldPassword, NewPassword]),
   case handle_validate(Cookie, Source) of
     {error, Reason} ->
       {error, Reason};
@@ -309,6 +310,7 @@ handle_chpassword_self(Username, OldPassword, NewPassword) ->
     UserRecord#users.password == OldPassword;
     OldPassword =/= NewPassword ->
       Now = os:timestamp(),
+      io:format("changing password ~p, ~p, ~p~n", [Username, OldPassword, NewPassword]),
       mnesia:dirty_write(UserRecord#users{password=NewPassword,
                                           modified_on=Now,
                                           modified_by=Username});
@@ -326,6 +328,7 @@ handle_chpassword_other(Username, Password, Requester) ->
           {error, wrong_password};
         true ->
           Now = os:timestamp(),
+          io:format("changing password ~p, ~p, ~p~n", [Username, Password, Requester]),
           mnesia:dirty_write(UserRecord#users{password=Password,
                                               modified_on=Now,
                                               modified_by=Requester})

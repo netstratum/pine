@@ -3,12 +3,15 @@
 
 -include("pine_mnesia.hrl").
 
--import(pine_user, [login/3, logout/3, chpassword/5, adduser/8]).
+-import(pine_user, [login/3, logout/3, chpassword/5, adduser/8,
+                    modifyuser/8, listusers/4, searchusers/8,
+                    getuserinfo/3]).
 -import(pine_tools, [hexbin_to_bin/1, bin_to_hexbin/1,
                      try_find_map/2]).
 
 -export([start_link/0, login_api/1, logout_api/1, chpassword_api/1,
-         adduser_api/1]).
+         adduser_api/1, modifyuser_api/1, listusers_api/1, searchusers_api/1,
+         getuserinfo_api/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -40,6 +43,7 @@ chpassword_api(#{username:=Username,
                       true -> hexbin_to_bin(OldPassword)
                    end,
   NewPasswordBin = hexbin_to_bin(NewPassword),
+  io:format("chpassword_api triggered~n"),
   chpassword(Cookie, Source, Username, OldPasswordBin, NewPasswordBin).
 
 adduser_api(#{name:=Name,
@@ -53,6 +57,36 @@ adduser_api(#{name:=Name,
   PasswordBin = hexbin_to_bin(Password),
   adduser(Cookie, Source, Name, Notes,
           EmailAddress, PasswordBin, RoleId, Expiry).
+modifyuser_api(#{id:=Id,
+                 http_token:=Cookie,
+                 http_source:=Source} = Maps) ->
+  Name = try_find_map(name, Maps),
+  Notes = try_find_map(notes, Maps),
+  Email = try_find_map(email, Maps),
+  Expiry = try_find_map(expiry, Maps),
+  RoleId = try_find_map(role, Maps),
+  modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId).
+
+listusers_api(#{page_no:=PageNo,
+                page_size:=PageSize,
+                http_token:=Cookie,
+                http_source:=Source}) ->
+  listusers(Cookie, Source, PageNo, PageSize).
+
+searchusers_api(#{page_no:=PageNo,
+                  page_size:=PageSize,
+                  http_token:=Cookie,
+                  http_source:=Source} = Maps) ->
+  Name = try_find_map(name, Maps),
+  Email = try_find_map(email, Maps),
+  StartTS = try_find_map(start_ts, Maps),
+  EndTS = try_find_map(end_ts, Maps),
+  searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo, PageSize).
+
+getuserinfo_api(#{id:=Id,
+                  http_token:=Cookie,
+                  http_source:=Source}) ->
+  getuserinfo(Cookie, Source, Id).
 
 init([]) ->
   init_api(),
@@ -68,17 +102,31 @@ init_api() ->
                                    arguments = [username],
                                    handler = {?MODULE, logout_api},
                                    created_on = Now}),
-  mnesia:dirty_write(#api_handlers{function =
-                                   <<"identity.user.changepassword">>,
+  mnesia:dirty_write(#api_handlers{function = <<"identity.user.changePassword">>,
                                    arguments = [username, oldpassword,
                                                 newpassword],
                                    handler = {?MODULE, chpassword_api},
                                    created_on = Now}),
-  mnesia:dirty_write(#api_handlers{function =
-                                   <<"identity.user.add">>,
+  mnesia:dirty_write(#api_handlers{function = <<"identity.user.add">>,
                                    arguments = [name, email, password,
                                                 role],
                                    handler = {?MODULE, adduser_api},
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function = <<"identity.user.modify">>,
+                                   arguments = [id],
+                                   handler = {?MODULE, modifyuser_api},
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function = <<"identity.user.list">>,
+                                   arguments = [page_no, page_size],
+                                   handler = {?MODULE, listusers_api},
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function = <<"identity.user.search">>,
+                                   arguments = [page_no, page_size],
+                                   handler = {?MODULE, searchusers_api},
+                                   created_on = Now}),
+  mnesia:dirty_write(#api_handlers{function = <<"identity.user.getdetails">>,
+                                   arguments = [id],
+                                   handler = {?MODULE, getuserinfo_api},
                                    created_on = Now}).
 
 handle_call(_Request, _From, State) ->

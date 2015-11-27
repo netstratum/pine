@@ -8,7 +8,7 @@
   }).
 
 -export([start/0, start/2, stop/1, open_pin/2, close_pin/2, burn_pin/2,
-         change_password/2]).
+         change_password/2, add_user/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -39,6 +39,12 @@ change_password(Name, {Username, OldPassword, NewPassword}) ->
                          Username,
                          OldPassword,
                          NewPassword}).
+add_user(Name, {Username, Email, Password, Role}) ->
+  gen_server:call(Name, {add_user,
+                         Username,
+                         Email,
+                         Password,
+                         Role}).
 
 init([Url, Username, Password]) ->
   case test_api:login(Url, Username, Password) of
@@ -63,6 +69,14 @@ handle_call({change_password, Username, OldPassword, NewPassword}, _From, State)
                                    Username,
                                    OldPassword,
                                    NewPassword),
+  {reply, Reply, State};
+handle_call({add_user, Name, Email, Password, Role}, _From, State) ->
+  Reply = test_api:add_user(State#state.url,
+                            State#state.token,
+                            Name,
+                            Email,
+                            Password,
+                            Role),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
