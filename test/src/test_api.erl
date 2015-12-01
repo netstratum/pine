@@ -1,7 +1,8 @@
 -module(test_api).
 -export([login/3, logout/3, open_pin/4,
          close_pin/4, burn_pin/4, change_password/5,
-         add_user/6]).
+         add_user/6, modify_user/8, list_users/4, search_users/8,
+         getdetails_user/3]).
 
 login(Url, Username, Password) ->
   RequestBody = test_tools:encode_json(
@@ -122,3 +123,72 @@ add_user(Url, Token, Name, Email, Password, Role) ->
       {error, Reason}
   end.
 
+modify_user(Url, Token, Id, Name, Notes, Email, Expiry, RoleId) ->
+  RequestBody = test_tools:encode_json(
+                  removeEmptyBinary([
+                               {function, <<"identity.user.modify">>},
+                               {id, list_to_binary(Id)},
+                               {name, list_to_binary(Name)},
+                               {notes, list_to_binary(Notes)},
+                               {email, list_to_binary(Email)},
+                               {expiry, list_to_binary(Expiry)},
+                               {role, list_to_binary(RoleId)}
+                              ])),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+list_users(Url, Token, PageNo, PageSize) ->
+  RequestBody = test_tools:encode_json([{function, <<"identity.user.list">>},
+                                        {page_no, list_to_binary(PageNo)},
+                                        {page_size, list_to_binary(PageSize)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+search_users(Url, Token, Name, Email, StartTS, EndTS, PageNo, PageSize) ->
+  RequestBody = test_tools:encode_json(
+                  removeEmptyBinary([{function, <<"identity.user.search">>},
+                                     {name, list_to_binary(Name)},
+                                     {email, list_to_binary(Email)},
+                                     {start_ts, list_to_binary(StartTS)},
+                                     {end_ts, list_to_binary(EndTS)},
+                                     {page_no, list_to_binary(PageNo)},
+                                     {page_size, list_to_binary(PageSize)}])),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+getdetails_user(Url, Token, Id) ->
+  RequestBody = test_tools:encode_json([{function, <<"identity.user.getdetails">>},
+                                        {id, list_to_binary(Id)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+removeEmptyBinary(ParamList) ->
+  [{Param, Value}||{Param, Value} <- ParamList, Value =/= <<>>].

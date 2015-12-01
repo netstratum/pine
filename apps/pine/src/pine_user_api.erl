@@ -7,7 +7,7 @@
                     modifyuser/8, listusers/4, searchusers/8,
                     getuserinfo/3]).
 -import(pine_tools, [hexbin_to_bin/1, bin_to_hexbin/1,
-                     try_find_map/2]).
+                     try_find_map/2, try_to_int/1]).
 
 -export([start_link/0, login_api/1, logout_api/1, chpassword_api/1,
          adduser_api/1, modifyuser_api/1, listusers_api/1, searchusers_api/1,
@@ -71,7 +71,9 @@ listusers_api(#{page_no:=PageNo,
                 page_size:=PageSize,
                 http_token:=Cookie,
                 http_source:=Source}) ->
-  listusers(Cookie, Source, PageNo, PageSize).
+  PageNoInt = try_to_int(PageNo),
+  PageSizeInt = try_to_int(PageSize),
+  listusers(Cookie, Source, PageNoInt, PageSizeInt).
 
 searchusers_api(#{page_no:=PageNo,
                   page_size:=PageSize,

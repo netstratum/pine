@@ -29,7 +29,8 @@
          hexbin_to_bin/1,
          bin_to_hexbin/1,
          ts_to_bin/1,
-         try_find_map/2]).
+         try_find_map/2,
+         try_to_int/1]).
 
 %%=======================================================================%%
 %% API functions
@@ -296,4 +297,12 @@ try_find_map(Key, Map) ->
       undefined;
     {ok, Value} ->
       Value
+  end.
+
+try_to_int(Data) ->
+  case (catch to_int(Data)) of
+    {'EXIT', _Reason} ->
+      -1;
+    Int ->
+      Int
   end.
