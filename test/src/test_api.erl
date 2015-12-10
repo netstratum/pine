@@ -2,7 +2,8 @@
 -export([login/3, logout/3, open_pin/4,
          close_pin/4, burn_pin/4, change_password/5,
          add_user/6, modify_user/8, list_users/4, search_users/8,
-         getdetails_user/3]).
+         getdetails_user/3, list_roles/4, lock_user/4, unlock_user/4,
+         retire_user/4]).
 
 login(Url, Username, Password) ->
   RequestBody = test_tools:encode_json(
@@ -180,6 +181,62 @@ search_users(Url, Token, Name, Email, StartTS, EndTS, PageNo, PageSize) ->
 getdetails_user(Url, Token, Id) ->
   RequestBody = test_tools:encode_json([{function, <<"identity.user.getdetails">>},
                                         {id, list_to_binary(Id)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+list_roles(Url, Token, PageNo, PageSize) ->
+  RequestBody = test_tools:encode_json([{function, <<"identity.role.list">>},
+                                        {page_no, list_to_binary(PageNo)},
+                                        {page_size, list_to_binary(PageSize)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+lock_user(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"identity.user.lock">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+unlock_user(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"identity.user.unlock">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+retire_user(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"identity.user.retire">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
   case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
     {ok, StatusCode, _Headers, []} ->
       {ok, StatusCode};

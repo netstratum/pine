@@ -10,12 +10,13 @@
 %% Frequently used imports
 -import(pine_mnesia, [create_table/2, read_conf/2]).
 -import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2,
-                     did_it_happen/3]).
+                     did_it_happen/3, to/2]).
 
 %% API functions
 -export([start_link/0, login/3, logout/3, validate/2, chpassword/5,
          adduser/8, modifyuser/8, listusers/4, searchusers/8,
-         getuserinfo/3]).
+         getuserinfo/3, listroles/4, lockuser/4, unlockuser/4,
+         retireuser/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2,
@@ -133,6 +134,48 @@ searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo, PageSize) ->
 getuserinfo(Cookie, Source, Id) ->
   gen_server:call(?MODULE, {getuserinfo, Cookie, Source, Id}).
 
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Lock a user temporarily
+%%
+%% @spec lockuser(Cookie, Source, Id, Comment) -> ok | {error, Reason}
+%% @end
+
+lockuser(Cookie, Source, Id, Comment) ->
+  gen_server:call(?MODULE, {lockuser, Cookie, Source, Id, Comment}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% UnLock a previously locked
+%%
+%% @spec unlockuser(Cookie, Source, Id, Comment) -> ok | {error, Reason}
+%% @end
+
+unlockuser(Cookie, Source, Id, Comment) ->
+  gen_server:call(?MODULE, {unlockuser, Cookie, Source, Id, Comment}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Retire User
+%%
+%% @spec retireuser(Cookie, Source, Id, Comment) ->
+%%                 ok | {error, Reason}
+%% @end
+
+retireuser(Cookie, Source, Id, Comment) ->
+  gen_server:call(?MODULE, {retireuser, Cookie, Source, Id, Comment}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% List Users
+%%
+%% @spec listusers(Cookie, Source, PageNo, PageSize) ->
+%%                 {ok, UsersInfoList} | {error, Reason}
+%% @end
+
+listroles(Cookie, Source, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {listroles, Cookie, Source, PageNo, PageSize}).
+
 %%=======================================================================%%
 %% gen_server callbacksf
 %%=======================================================================%%
@@ -173,6 +216,18 @@ handle_call({searchusers, Cookie, Source, Name, Email, StartTS, EndTS, PageNo,
   {reply, Reply, State};
 handle_call({getuserinfo, Cookie, Source, Id}, _From, State) ->
   Reply = handle_getuserinfo(Cookie, Source, Id),
+  {reply, Reply, State};
+handle_call({listroles, Cookie, Source, PageNo, PageSize}, _From, State) ->
+  Reply = handle_listroles(Cookie, Source, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({lockuser, Cookie, Source, Id, Comment}, _From, State) ->
+  Reply = handle_lockuser(Cookie, Source, Id, Comment),
+  {reply, Reply, State};
+handle_call({unlockuser, Cookie, Source, Id, Comment}, _From, State) ->
+  Reply = handle_unlockuser(Cookie, Source, Id, Comment),
+  {reply, Reply, State};
+handle_call({retireuser, Cookie, Source, Id, Comment}, _From, State) ->
+  Reply = handle_retireuser(Cookie, Source, Id, Comment),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -217,7 +272,7 @@ init_data() ->
     [] ->
       RoleUuid = uuid(),
       mnesia:dirty_write(#roles{id=RoleUuid, name=Role, status=active,
-                                created_on=Now, created_by = <<"sys">>}),
+                                created_on=Now}),
       RoleUuid;
     [RootRole] ->
       RootRole#roles.id
@@ -230,7 +285,7 @@ init_data() ->
       PassMd5 = md5(Password),
       mnesia:dirty_write(#users{id=UserUuid, name=User, role=RoleId,
                                 password=PassMd5, status=active,
-                                created_on=Now, created_by = <<"sys">>});
+                                created_on=Now});
     _ ->
       ok
   end.
@@ -241,11 +296,13 @@ handle_login(Username, Password, Source) ->
       {error, not_found};
     [UserRecord] ->
       if
-        UserRecord#users.password == Password ->
+        UserRecord#users.password == Password,
+        UserRecord#users.status == active ->
+          UserId = UserRecord#users.id,
           Cookie = uuid(),
           Now = os:timestamp(),
           Expiry = read_conf(session_timeout, 15),
-          mnesia:dirty_write(#sessions{id=Cookie, user=Username,
+          mnesia:dirty_write(#sessions{id=Cookie, user=UserId,
                                       source=Source, expiry=Expiry,
                                       status=active, created_on=Now,
                                       modified_on=Now}),
@@ -275,8 +332,10 @@ handle_validate(Cookie, Source) ->
     [] ->
       {error, not_found};
     [SessionRecord] ->
+      [UserRecord] = mnesia:dirty_read(users, SessionRecord#sessions.user),
       if
-        SessionRecord#sessions.source == Source ->
+        SessionRecord#sessions.source == Source,
+        UserRecord#users.status == active ->
           Now = os:timestamp(),
           Then = SessionRecord#sessions.modified_on,
           ExpiryMin = SessionRecord#sessions.expiry,
@@ -344,11 +403,16 @@ handle_adduser(Cookie, Source, Name, Notes,
       Now = os:timestamp(),
       case mnesia:dirty_index_read(users, Name, #users.name) of
         [] ->
-          mnesia:dirty_write(#users{id=uuid(), name=Name, notes=Notes,
+          case mnesia:dirty_read(roles, RoleId) of
+            [] ->
+              {error, invalid_role};
+            _ ->
+              mnesia:dirty_write(#users{id=uuid(), name=Name, notes=Notes,
                                     email=EmailAddress, password=Password,
                                     access_expiry=Expiry, role=RoleId,
                                     status=active, created_on=Now,
-                                    created_by=Requester});
+                                    created_by=Requester})
+          end;
         _ ->
           {error, user_exists}
       end
@@ -376,6 +440,8 @@ handle_modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId) ->
       end
   end.
 
+update_record(UserRecord, []) ->
+  UserRecord;
 update_record(UserRecord, [ParamValue|ParamList]) ->
   NewUserRecord = update_record_param(UserRecord, ParamValue),
   update_record(NewUserRecord, ParamList).
@@ -403,29 +469,29 @@ handle_listusers(Cookie, Source, PageNo, PageSize) ->
       {error, Reason};
     {ok, _Requester} ->
       Keys = mnesia:dirty_all_keys(users),
-       case get_keysforpage(Keys, PageNo, PageSize) of
+       case get_keysforpage(Keys, to(int,PageNo), to(int, PageSize)) of
          {error, Reason} ->
            {error, Reason};
          {ok, KeysSublist, TotalPages} ->
-            Rows = lists:map(
+            Rows = lists:flatten(lists:map(
               fun(Key) -> mnesia:dirty_read(users, Key) end,
               KeysSublist
-             ),
+             )),
             {ok, Rows, TotalPages}
        end
   end.
 
 get_keysforpage(Keys, _PageNo, PageSize) when PageSize < 0 ->
-  Keys;
+  {ok, Keys, 1};
 get_keysforpage(Keys, PageNo, PageSize) ->
-  TotalPages = Keys div PageSize,
+  TotalPages = length(Keys) div PageSize + 1,
   if
     PageNo > TotalPages ->
       {error, invalid_page};
     true ->
       PageNoEnsure = if PageNo < 1 -> 1; true -> PageNo end,
       FirstPosition = (PageNoEnsure - 1) * PageSize + 1,
-      {lists:sublist(Keys, FirstPosition, PageSize), TotalPages}
+      {ok, lists:sublist(Keys, FirstPosition, PageSize), TotalPages}
   end.
 
 handle_searchuser(Cookie, Source, Name, Email, StartTS, EndTS,
@@ -437,14 +503,14 @@ handle_searchuser(Cookie, Source, Name, Email, StartTS, EndTS,
       Keys = mnesia:dirty_all_keys(users),
       FilteredKeys = filter_users(Keys, [{name, Name}, {email, Email},
                                          {created, {StartTS, EndTS}}]),
-      case get_keysforpage(FilteredKeys, PageNo, PageSize) of
+      case get_keysforpage(FilteredKeys, to(int, PageNo), to(int, PageSize)) of
         {error, Reason} ->
           {error, Reason};
         {ok, KeysSublist, TotalPages} ->
-          Rows = lists:map(
+          Rows = lists:flatten(lists:map(
                    fun(Key) -> mnesia:dirty_read(users, Key) end,
                    KeysSublist
-                  ),
+                  )),
           {ok, Rows, TotalPages}
       end
   end.
@@ -474,9 +540,21 @@ filter_users_bool(UserRecord, [{email, Email}|Filters]) ->
     true ->
       filter_users_bool(UserRecord, Filters)
   end;
+filter_users_bool(UserRecord, [{created, {StartTS, EndTS}}|Filters])
+    when StartTS == undefined, EndTS == undefined ->
+  filter_users_bool(UserRecord, Filters);
 filter_users_bool(UserRecord, [{created, {StartTS, EndTS}}|Filters]) ->
   UserCreatedOn = UserRecord#users.created_on,
-  case did_it_happen(UserCreatedOn, StartTS, EndTS) of
+  CreatedSeconds = to(seconds, UserCreatedOn),
+  StartTSSeconds = to(seconds, StartTS),
+  EndTSSeconds = to(seconds, EndTS),
+  io:format("Times here are ~p, ~p and ~p~n", [UserCreatedOn,
+                                               StartTS,
+                                               EndTS]),
+  io:format("Time search here is ~p, ~p, ~p~n", [CreatedSeconds,
+                                                 StartTSSeconds,
+                                                 EndTSSeconds]),
+  case did_it_happen(CreatedSeconds, StartTSSeconds, EndTSSeconds) of
     true ->
       true;
     _ ->
@@ -494,7 +572,94 @@ handle_getuserinfo(Cookie, Source, Id) ->
         [] ->
           {error, no_user};
         [UserRecord] ->
-          [_|[_|UserInfo]] = tuple_to_list(UserRecord),
-          {ok, UserInfo}
+          {ok, UserRecord}
+      end
+  end.
+
+handle_listroles(Cookie, Source, PageNo, PageSize) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, _Requester} ->
+      Keys = mnesia:dirty_all_keys(roles),
+       case get_keysforpage(Keys, to(int, PageNo), to(int,PageSize)) of
+         {error, Reason} ->
+           {error, Reason};
+         {ok, KeysSublist, TotalPages} ->
+            Rows = lists:flatten(lists:map(
+              fun(Key) -> mnesia:dirty_read(roles, Key) end,
+              KeysSublist
+             )),
+            {ok, Rows, TotalPages}
+       end
+  end.
+
+handle_lockuser(Cookie, Source, Id, Comment) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, Requester} ->
+      case mnesia:dirty_read(users, Id) of
+        [] ->
+          {error, no_user};
+        [UserRecord] ->
+          case UserRecord#users.status of
+            Status when Status =/= lock, Status =/= retire ->
+              Now = os:timestamp(),
+              mnesia:dirty_write(UserRecord#users{status=lock,
+                                                  status_comment=Comment,
+                                                  modified_on=Now,
+                                                  modified_by=Requester});
+            lock ->
+              {error, already_locked};
+            retire ->
+              {error, no_user}
+          end
+      end
+  end.
+
+handle_unlockuser(Cookie, Source, Id, Comment) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, Requester} ->
+      case mnesia:dirty_read(users, Id) of
+        [] ->
+          {error, no_user};
+        [UserRecord] ->
+          case UserRecord#users.status of
+            Status when Status =/= active, Status =/= retire ->
+              Now = os:timestamp(),
+              mnesia:dirty_write(UserRecord#users{status=active,
+                                                  status_comment=Comment,
+                                                  modified_on=Now,
+                                                  modified_by=Requester});
+            active ->
+              {error, user_active};
+            retire ->
+              {error, no_user}
+          end
+      end
+  end.
+
+handle_retireuser(Cookie, Source, Id, Comment) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, Requester} ->
+      case mnesia:dirty_read(users, Id) of
+        [] ->
+          {error, no_user};
+        [UserRecord] ->
+          case UserRecord#users.status of
+            retire ->
+              {error, no_user};
+            _Status ->
+              Now = os:timestamp(),
+              mnesia:dirty_write(UserRecord#users{status=retire,
+                                                  status_comment=Comment,
+                                                  modified_on=Now,
+                                                  modified_by=Requester})
+          end
       end
   end.

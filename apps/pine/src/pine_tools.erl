@@ -30,7 +30,11 @@
          bin_to_hexbin/1,
          ts_to_bin/1,
          try_find_map/2,
-         try_to_int/1]).
+         try_find_map/3,
+         try_to_int/1,
+         try_to_hexbin/1,
+         try_to_hexbin_list/1,
+         now_to_iso8601/1]).
 
 %%=======================================================================%%
 %% API functions
@@ -84,15 +88,23 @@ decode_json(JsonBinary) ->
 %% Convert erlang timestamp to seconds
 %%
 %%
-now_to_seconds({Mega, Sec, _}) ->
-  Mega*1000000 + Sec.
+now_to_seconds(Now) ->
+  calendar:datetime_to_gregorian_seconds(calendar:now_to_local_time(Now)).
 
 timestamp_diff_seconds(ToTS, FromTS) ->
   now_to_seconds(ToTS) - now_to_seconds(FromTS).
 
-did_it_happen(In, From, To) ->
-  (now_to_seconds(From) < now_to_seconds(In)) andalso
-  (now_to_seconds(In) < now_to_seconds(To)).
+did_it_happen(0, _From, _To) ->
+  true;
+did_it_happen(In, From, 0) when is_integer(In), is_integer(From) ->
+  From < In;
+did_it_happen(In, 0, To) when is_integer(In), is_integer(To) ->
+  In < To;
+did_it_happen(In, From, To) when is_integer(In), is_integer(From),
+                                 is_integer(To)->
+  (From < In) andalso (In < To);
+did_it_happen(_In, _From, _To) ->
+  false.
 
 ts_to_bin(ErlangNow) ->
   list_to_binary(ts_to_str(ErlangNow)).
@@ -199,7 +211,9 @@ to(atom, Data) ->
 to(string, Data) ->
   to_string(Data);
 to(binary, Data) ->
-  to_binary(Data).
+  to_binary(Data);
+to(seconds, Data) ->
+  to_seconds(Data).
 
 to_int(Data) when is_atom(Data) ->
   to_int(atom_to_list(Data));
@@ -261,10 +275,39 @@ to_binary(Data) when is_integer(Data) ->
   integer_to_binary(Data);
 to_binary(Data) when is_float(Data) ->
   float_to_binary(Data, [{decimals, 2}, compact]);
+to_binary(undefined) ->
+  <<>>;
 to_binary(Data) when is_atom(Data) ->
   atom_to_binary(Data, utf8);
 to_binary(Data) when is_binary(Data) ->
-  Data.
+  Data;
+to_binary({A,B,C}) ->
+  to_binary(now_to_iso8601({A,B,C}));
+to_binary(Data) ->
+  io:format("Unable to transform ~p into binary~n", [Data]),
+  <<>>.
+
+to_seconds(Data) when is_binary(Data) ->
+  to_seconds(to_list(Data));
+to_seconds(Data) when is_list(Data) ->
+  case string:tokens(Data, "-T:") of
+    [YYYY, MM, DD, H, M, S] ->
+        to_seconds({{to(int, YYYY), to(int, MM), to(int, DD)},
+        {to(int, H), to(int, M), to(int, S)}});
+    _ ->
+      undefined
+  end;
+to_seconds({A, B, C}) ->
+  now_to_seconds({A, B, C});
+to_seconds({{YYYY, MM, SS}, {H, M, S}}) ->
+  calendar:datetime_to_gregorian_seconds({{YYYY, MM, SS}, {H, M, S}});
+to_seconds(Data) ->
+  io:format("Unable to transform ~p into seconds~n", [Data]),
+  0.
+
+now_to_iso8601({A, B, C}) ->
+  {{YYYY, MM, DD}, {H, M, S}} = calendar:now_to_local_time({A,B,C}),
+  lists:flatten(io_lib:format("~p-~p-~pT~p:~p:~p", [YYYY, MM, DD, H, M, S])).
 
 get_missing(Map, ParamList) when is_map(Map) ->
   lists:filtermap(
@@ -292,9 +335,12 @@ get_missing(List, ParamList) when is_list(List) ->
    ).
 
 try_find_map(Key, Map) ->
+  try_find_map(Key, Map, undefined).
+
+try_find_map(Key, Map, Default) ->
   case maps:find(Key, Map) of
     error ->
-      undefined;
+      Default;
     {ok, Value} ->
       Value
   end.
@@ -306,3 +352,16 @@ try_to_int(Data) ->
     Int ->
       Int
   end.
+
+try_to_hexbin(Data) ->
+  case (catch bin_to_hexbin(Data)) of
+    {'EXIT', _Reason} ->
+      to_binary(Data);
+    HexBin ->
+      HexBin
+  end.
+
+try_to_hexbin_list(DataList) when is_list(DataList) ->
+  [try_to_hexbin(Data)||Data<-DataList];
+try_to_hexbin_list(_DataListUnknown) ->
+  [].
