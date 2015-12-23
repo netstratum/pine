@@ -171,74 +171,83 @@ load_pins(Fd, Value, ExpiryEDate) ->
   end.
 
 handle_open_pin(Pin, EndUser) ->
-  case mnesia:dirty_index_read(pins, Pin, #pins.pin) of
-    [] ->
-      {error, not_found};
-    [PinRecord] ->
-      case PinRecord#pins.status of
-        active ->
-          Now = os:timestamp(),
-          mnesia:dirty_write(PinRecord#pins{status=open,
-                                            opened_on=Now,
-                                            opened_by=EndUser}),
-          {ok, PinRecord#pins.seq, PinRecord#pins.value};
-        open ->
-          if
-            PinRecord#pins.opened_by == EndUser,
-                EndUser =/= undefined ->
-              {ok, PinRecord#pins.seq, PinRecord#pins.value,
-               PinRecord#pins.opened_on};
-            true ->
-              {error, not_found}
-          end;
-        _ ->
-          {error, not_found}
-      end
-  end.
+  Now = os:timestamp(),
+  OpenPinFun = fun() ->
+    case mnesia:index_read(pins, Pin, #pins.pin) of
+      [] ->
+        {error, not_found};
+      [PinRecord] ->
+        case PinRecord#pins.status of
+          active ->
+            mnesia:write(PinRecord#pins{status=open,
+                                              opened_on=Now,
+                                              opened_by=EndUser}),
+            {ok, PinRecord#pins.seq, PinRecord#pins.value};
+          open ->
+            if
+              PinRecord#pins.opened_by == EndUser,
+                  EndUser =/= undefined ->
+                {ok, PinRecord#pins.seq, PinRecord#pins.value,
+                 PinRecord#pins.opened_on};
+              true ->
+                {error, not_found}
+            end;
+          _ ->
+            {error, not_found}
+        end
+    end
+  end,
+  mnesia:activity(transaction, OpenPinFun).
 
 handle_close_pin(Seq, EndUser) ->
-  case mnesia:dirty_index_read(pins, Seq, #pins.seq) of
-    [] ->
-      {error, not_found};
-    [PinRecord] ->
-      if
-        PinRecord#pins.opened_by == EndUser,
-            EndUser =/= undefined ->
-          case PinRecord#pins.status of
-            active ->
-              {ok, already_closed};
-            open ->
-              mnesia:dirty_write(PinRecord#pins{status=active}),
-              ok;
-            _ ->
-              {error, not_allowd}
-          end;
-        true ->
-          {error, not_found}
-      end
-  end.
+  ClosePinFun = fun() ->
+    case mnesia:index_read(pins, Seq, #pins.seq) of
+      [] ->
+        {error, not_found};
+      [PinRecord] ->
+        if
+          PinRecord#pins.opened_by == EndUser,
+              EndUser =/= undefined ->
+            case PinRecord#pins.status of
+              active ->
+                {ok, already_closed};
+              open ->
+                mnesia:write(PinRecord#pins{status=active}),
+                ok;
+              _ ->
+                {error, not_allowd}
+            end;
+          true ->
+            {error, not_found}
+        end
+    end
+  end,
+  mnesia:activity(transaction, ClosePinFun).
 
 handle_burn_pin(Seq, EndUser) ->
-  case mnesia:dirty_index_read(pins, Seq, #pins.seq) of
-    [] ->
-      {error, not_found};
-    [PinRecord] ->
-      if
-        PinRecord#pins.opened_by == EndUser,
-            EndUser =/= undefined ->
-          case PinRecord#pins.status of
-            active ->
-              {ok, not_allowed};
-            open ->
-              Now = os:timestamp(),
-              mnesia:dirty_write(PinRecord#pins{status=used,
-                                                used_on=Now,
-                                                used_by=EndUser}),
-              ok;
-            used ->
-              {ok, already_used}
-          end;
-        true ->
-          {error, not_found}
-      end
-  end.
+  BurnPinFun = fun() ->
+    case mnesia:index_read(pins, Seq, #pins.seq) of
+      [] ->
+        {error, not_found};
+      [PinRecord] ->
+        if
+          PinRecord#pins.opened_by == EndUser,
+              EndUser =/= undefined ->
+            case PinRecord#pins.status of
+              active ->
+                {ok, not_allowed};
+              open ->
+                Now = os:timestamp(),
+                mnesia:write(PinRecord#pins{status=used,
+                                                  used_on=Now,
+                                                  used_by=EndUser}),
+                ok;
+              used ->
+                {ok, already_used}
+            end;
+          true ->
+            {error, not_found}
+        end
+    end
+  end,
+  mnesia:activity(transaction, BurnPinFun).

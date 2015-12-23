@@ -3,7 +3,7 @@
 rebar=rebar
 
 all: deps compile
-interact: clean compile release console
+increment: compile release console
 compile:
 	@$(rebar) compile
 deps:
@@ -31,8 +31,8 @@ test_clean:
 	@cd test;$(MAKE) clean
 test_console:
 	@cd test;$(MAKE) console
-test_interact:
-	@cd test;$(MAKE) interact
+test_increment:
+	@cd test;$(MAKE) increment
 rpm:
 	@mkdir -p pkg/rpm/
 	@fpm -s dir -t rpm -n pine -v 0.1 -C rel -p pine-VERSION_ARCH.rpm --prefix /opt --description "PIN generation and management Engine" --rpm-user pine --rpm-group pine --rpm-compression gzip --before-install pkg/files/before_install.sh --epoch 1 --after-install pkg/files/after_install.sh --after-remove pkg/files/after_remove.sh -p pkg/rpm/ pine

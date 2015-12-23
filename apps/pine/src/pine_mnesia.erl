@@ -4,7 +4,7 @@
 -include("pine_mnesia.hrl").
 
 -export([start_link/0, read_conf/1, read_conf/2, create_table/2,
-         update_conf/3, update_conf/4, update_schema/0]).
+         update_conf/3, update_conf/4, update_schema/0, readall/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3]).
 
@@ -18,16 +18,13 @@ update_schema() ->
   gen_server:call(?MODULE, update_schema).
 
 read_conf(Key, Default) ->
+  EnvValue = application:get_env(pine, Key, Default),
   case catch mnesia:dirty_read(sysconf, Key) of
     {'EXIT', _Reason} ->
-      application:get_env(pine, Key, Default);
+      EnvValue;
     [] ->
-      Value = application:get_env(pine, Key, Default),
-      Now = os:timestamp(),
-      mnesia:dirty_write(#sysconf{key=Key, value=Value,
-                                  notes="System Default",
-                                  created_on=Now}),
-      Value;
+      update_conf(Key, EnvValue, undefined, "System Default"),
+      EnvValue;
     [Sysconf] ->
       Sysconf#sysconf.value
   end.
@@ -36,25 +33,34 @@ update_conf(Key, Value, User) ->
   update_conf(Key, Value, User, undefined).
 update_conf(Key, Value, User, Notes) ->
   Now = os:timestamp(),
-  case catch mnesia:dirty_read(sysconf, Key) of
-    {'EXIT', _Reason} ->
-      {error, no_table};
-    [] ->
-      mnesia:dirty_write(#sysconf{key=Key, value=Value,
-                                  notes=Notes, created_on=Now,
-                                  created_by=User});
-    [ConfRecord] ->
-      NotesU = if
-        Notes == undefined -> ConfRecord#sysconf.notes;
-        true -> Notes
-      end,
-      mnesia:dirty_write(ConfRecord#sysconf{value=Value, notes=NotesU,
-                                            modified_on=Now,
-                                            modified_by=User})
+  UpdateConfFun = fun() ->
+    case mnesia:read(sysconf, Key) of
+      [] ->
+        mnesia:write(#sysconf{key=Key, value=Value,
+                                    notes=Notes, created_on=Now,
+                                    created_by=User});
+      [ConfRecord] ->
+        NotesU = if
+          Notes == undefined -> ConfRecord#sysconf.notes;
+          true -> Notes
+        end,
+        mnesia:write(ConfRecord#sysconf{value=Value, notes=NotesU,
+                                              modified_on=Now,
+                                              modified_by=User})
+    end
+  end,
+  case catch mnesia:activity(transaction, UpdateConfFun) of
+    {'EXIT', Reason} ->
+      {error, Reason};
+    ok ->
+      ok
   end.
 
 create_table(Table, Options) ->
   gen_server:call(?MODULE, {create_table, Table, Options}).
+
+readall(Table) ->
+  [mnesia:dirty_read(Table, Key)||Key<-mnesia:dirty_all_keys(Table)].
 
 init([]) ->
   init_schema(),

@@ -266,66 +266,84 @@ init_tables() ->
                           access_log], 2500).
 
 init_data() ->
-  Role = read_conf(role, <<"root">>),
+  RoleId = init_role(),
+  init_user(RoleId).
+
+init_role() ->
+  RoleName = read_conf(role, <<"root">>),
+  RoleUuid = uuid(),
   Now = os:timestamp(),
-  RoleId = case mnesia:dirty_index_read(roles, Role, #roles.name) of
-    [] ->
-      RoleUuid = uuid(),
-      mnesia:dirty_write(#roles{id=RoleUuid, name=Role, status=active,
-                                created_on=Now}),
-      RoleUuid;
-    [RootRole] ->
-      RootRole#roles.id
+  InitRoleFun = fun() ->
+    case mnesia:index_read(roles, RoleName, #roles.name) of
+      [] ->
+        mnesia:write(#roles{id=RoleUuid, name=RoleName, status=active,
+                                  created_on=Now}),
+        RoleUuid;
+      [RootRole] ->
+        RootRole#roles.id
+    end
   end,
+  mnesia:activity(transaction, InitRoleFun).
+
+init_user(RoleId) ->
   User = read_conf(user, <<"root">>),
-  case mnesia:dirty_index_read(users, User, #users.name) of
-    [] ->
-      UserUuid = uuid(),
-      Password = read_conf(password, <<"pa55wdr00t">>),
-      PassMd5 = md5(Password),
-      mnesia:dirty_write(#users{id=UserUuid, name=User, role=RoleId,
-                                password=PassMd5, status=active,
-                                created_on=Now});
-    _ ->
-      ok
-  end.
+  UserUuid = uuid(),
+  Now = os:timestamp(),
+  Password = read_conf(password, <<"pa55wdr00t">>),
+  PassMd5 = md5(Password),
+  InitUserFun = fun() ->
+    case mnesia:index_read(users, User, #users.name) of
+      [] ->
+        mnesia:write(#users{id=UserUuid, name=User, role=RoleId,
+                                  password=PassMd5, status=active,
+                                  created_on=Now});
+      _ ->
+        ok
+    end
+  end,
+  mnesia:activity(transaction, InitUserFun).
 
 handle_login(Username, Password, Source) ->
-  case mnesia:dirty_index_read(users, Username, #users.name) of
-    [] ->
-      {error, not_found};
-    [UserRecord] ->
-      if
-        UserRecord#users.password == Password,
-        UserRecord#users.status == active ->
-          UserId = UserRecord#users.id,
-          Cookie = uuid(),
-          Now = os:timestamp(),
-          Expiry = read_conf(session_timeout, 15),
-          mnesia:dirty_write(#sessions{id=Cookie, user=UserId,
-                                      source=Source, expiry=Expiry,
-                                      status=active, created_on=Now,
-                                      modified_on=Now}),
-          {ok, Cookie};
-        true ->
-          {error, not_authorized}
-      end
-  end.
+  Cookie = uuid(),
+  Now = os:timestamp(),
+  Expiry = read_conf(session_timeout, 15),
+  LoginSessionFun = fun() ->
+    case mnesia:index_read(users, Username, #users.name) of
+      [] ->
+        {error, not_found};
+      [UserRecord] ->
+        if
+          UserRecord#users.password == Password,
+          UserRecord#users.status == active ->
+            UserId = UserRecord#users.id,
+            mnesia:write(#sessions{id=Cookie, user=UserId,
+                                        source=Source, expiry=Expiry,
+                                        status=active, created_on=Now,
+                                        modified_on=Now}),
+            {ok, Cookie};
+          true ->
+            {error, not_authorized}
+        end
+    end
+  end,
+  mnesia:activity(transaction, LoginSessionFun).
 
 handle_logout(Username, Cookie, Source) ->
-  case mnesia:dirty_read(sessions, Cookie) of
-    [] ->
-      {error, not_found};
-    [SessionRecord] ->
-      if
-        SessionRecord#sessions.user == Username andalso
-            SessionRecord#sessions.source == Source->
-          mnesia:dirty_delete(sessions, Cookie),
-          ok;
-        true ->
-          {error, not_authorized}
-      end
-  end.
+  LogoutSessionFun = fun() ->
+    case mnesia:read(sessions, Cookie) of
+      [] ->
+        {error, not_found};
+      [SessionRecord] ->
+        if
+          SessionRecord#sessions.user == Username andalso
+              SessionRecord#sessions.source == Source->
+            mnesia:delete(sessions, Cookie);
+          true ->
+            {error, not_authorized}
+        end
+    end
+  end,
+  mnesia:activity(transaction, LogoutSessionFun).
 
 handle_validate(Cookie, Source) ->
   case mnesia:dirty_read(sessions, Cookie) of
@@ -344,7 +362,7 @@ handle_validate(Cookie, Source) ->
             TimeDiffMin =< ExpiryMin ->
               {ok, SessionRecord#sessions.user};
             true ->
-              mnesia:dirty_delete(sessions, Cookie),
+              handle_logout(UserRecord#users.name, Cookie, Source),
               {error, session_expired}
           end;
         true ->
@@ -353,7 +371,6 @@ handle_validate(Cookie, Source) ->
   end.
 
 handle_chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
-  io:format("changing password ~p, ~p, ~p~n", [Username, OldPassword, NewPassword]),
   case handle_validate(Cookie, Source) of
     {error, Reason} ->
       {error, Reason};
@@ -364,35 +381,39 @@ handle_chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
   end.
 
 handle_chpassword_self(Username, OldPassword, NewPassword) ->
-  [UserRecord] = mnesia:dirty_index_read(users, Username, #users.name),
-  if
-    UserRecord#users.password == OldPassword;
-    OldPassword =/= NewPassword ->
-      Now = os:timestamp(),
-      io:format("changing password ~p, ~p, ~p~n", [Username, OldPassword, NewPassword]),
-      mnesia:dirty_write(UserRecord#users{password=NewPassword,
-                                          modified_on=Now,
-                                          modified_by=Username});
-    true ->
-      {error, wrong_password}
-  end.
+  Now = os:timestamp(),
+  ChPasswordSelfFun = fun() ->
+    [UserRecord] = mnesia:index_read(users, Username, #users.name),
+    if
+      UserRecord#users.password == OldPassword;
+      OldPassword =/= NewPassword ->
+        mnesia:write(UserRecord#users{password=NewPassword,
+                                            modified_on=Now,
+                                            modified_by=Username});
+      true ->
+        {error, wrong_password}
+    end
+  end,
+  mnesia:activity(transaction, ChPasswordSelfFun).
 
 handle_chpassword_other(Username, Password, Requester) ->
-  case mnesia:dirty_index_read(users, Username, #users.name) of
-    [] ->
-      {error, not_found};
-    [UserRecord] ->
-      if
-        UserRecord#users.password == Password ->
-          {error, wrong_password};
-        true ->
-          Now = os:timestamp(),
-          io:format("changing password ~p, ~p, ~p~n", [Username, Password, Requester]),
-          mnesia:dirty_write(UserRecord#users{password=Password,
-                                              modified_on=Now,
-                                              modified_by=Requester})
-      end
-  end.
+  Now = os:timestamp(),
+  ChPasswordOther = fun() ->
+    case mnesia:index_read(users, Username, #users.name) of
+      [] ->
+        {error, not_found};
+      [UserRecord] ->
+        if
+          UserRecord#users.password == Password ->
+            {error, wrong_password};
+          true ->
+            mnesia:write(UserRecord#users{password=Password,
+                                                modified_on=Now,
+                                                modified_by=Requester})
+        end
+    end
+  end,
+  mnesia:activity(transaction, ChPasswordOther).
 
 handle_adduser(Cookie, Source, Name, Notes,
                EmailAddress, Password, RoleId, Expiry) ->
@@ -401,21 +422,24 @@ handle_adduser(Cookie, Source, Name, Notes,
       {error, Reason};
     {ok, Requester} ->
       Now = os:timestamp(),
-      case mnesia:dirty_index_read(users, Name, #users.name) of
-        [] ->
-          case mnesia:dirty_read(roles, RoleId) of
-            [] ->
-              {error, invalid_role};
-            _ ->
-              mnesia:dirty_write(#users{id=uuid(), name=Name, notes=Notes,
-                                    email=EmailAddress, password=Password,
-                                    access_expiry=Expiry, role=RoleId,
-                                    status=active, created_on=Now,
-                                    created_by=Requester})
-          end;
-        _ ->
-          {error, user_exists}
-      end
+      AddUserFun = fun() ->
+        case mnesia:index_read(users, Name, #users.name) of
+          [] ->
+            case mnesia:read(roles, RoleId) of
+              [] ->
+                {error, invalid_role};
+              _ ->
+                mnesia:write(#users{id=uuid(), name=Name, notes=Notes,
+                                      email=EmailAddress, password=Password,
+                                      access_expiry=Expiry, role=RoleId,
+                                      status=active, created_on=Now,
+                                      created_by=Requester})
+            end;
+          _ ->
+            {error, user_exists}
+        end
+      end,
+      mnesia:activity(transaction, AddUserFun)
   end.
 
 handle_modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId) ->
@@ -423,21 +447,23 @@ handle_modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId) ->
     {error, Reason} ->
       {error, Reason};
     {ok, Requester} ->
-      case mnesia:dirty_read(users, Id) of
-        [] ->
-          {error, no_user};
-        [UserRecord] ->
-          Now = os:timestamp(),
-          UpdatedRecord = update_record(UserRecord, [{name, Name},
-                                                     {notes, Notes},
-                                                     {email, Email},
-                                                     {access_expiry, Expiry},
-                                                     {role, RoleId},
-                                                     {modified_on, Now},
-                                                     {modified_by, Requester}]),
-          mnesia:dirty_write(UpdatedRecord),
-          ok
-      end
+      Now = os:timestamp(),
+      ModifyUserFun = fun() ->
+        case mnesia:read(users, Id) of
+          [] ->
+            {error, no_user};
+          [UserRecord] ->
+            UpdatedRecord = update_record(UserRecord, [{name, Name},
+                                                       {notes, Notes},
+                                                       {email, Email},
+                                                       {access_expiry, Expiry},
+                                                       {role, RoleId},
+                                                       {modified_on, Now},
+                                                       {modified_by, Requester}]),
+            mnesia:write(UpdatedRecord)
+        end
+      end,
+      mnesia:activity(transaction, ModifyUserFun)
   end.
 
 update_record(UserRecord, []) ->
@@ -599,23 +625,26 @@ handle_lockuser(Cookie, Source, Id, Comment) ->
     {error, Reason} ->
       {error, Reason};
     {ok, Requester} ->
-      case mnesia:dirty_read(users, Id) of
-        [] ->
-          {error, no_user};
-        [UserRecord] ->
-          case UserRecord#users.status of
-            Status when Status =/= lock, Status =/= retire ->
-              Now = os:timestamp(),
-              mnesia:dirty_write(UserRecord#users{status=lock,
-                                                  status_comment=Comment,
-                                                  modified_on=Now,
-                                                  modified_by=Requester});
-            lock ->
-              {error, already_locked};
-            retire ->
-              {error, no_user}
-          end
-      end
+      Now = os:timestamp(),
+      LockUserFun = fun() ->
+        case mnesia:read(users, Id) of
+          [] ->
+            {error, no_user};
+          [UserRecord] ->
+            case UserRecord#users.status of
+              Status when Status =/= lock, Status =/= retire ->
+                mnesia:write(UserRecord#users{status=lock,
+                                                    status_comment=Comment,
+                                                    modified_on=Now,
+                                                    modified_by=Requester});
+              lock ->
+                {error, already_locked};
+              retire ->
+                {error, no_user}
+            end
+        end
+      end,
+      mnesia:activity(transaction, LockUserFun)
   end.
 
 handle_unlockuser(Cookie, Source, Id, Comment) ->
@@ -623,23 +652,26 @@ handle_unlockuser(Cookie, Source, Id, Comment) ->
     {error, Reason} ->
       {error, Reason};
     {ok, Requester} ->
-      case mnesia:dirty_read(users, Id) of
-        [] ->
-          {error, no_user};
-        [UserRecord] ->
-          case UserRecord#users.status of
-            Status when Status =/= active, Status =/= retire ->
-              Now = os:timestamp(),
-              mnesia:dirty_write(UserRecord#users{status=active,
-                                                  status_comment=Comment,
-                                                  modified_on=Now,
-                                                  modified_by=Requester});
-            active ->
-              {error, user_active};
-            retire ->
-              {error, no_user}
-          end
-      end
+      Now = os:timestamp(),
+      UnlockUserFun = fun() ->
+        case mnesia:read(users, Id) of
+          [] ->
+            {error, no_user};
+          [UserRecord] ->
+            case UserRecord#users.status of
+              Status when Status =/= active, Status =/= retire ->
+                mnesia:write(UserRecord#users{status=active,
+                                                    status_comment=Comment,
+                                                    modified_on=Now,
+                                                    modified_by=Requester});
+              active ->
+                {error, user_active};
+              retire ->
+                {error, no_user}
+            end
+        end
+      end,
+      mnesia:activity(transaction, UnlockUserFun)
   end.
 
 handle_retireuser(Cookie, Source, Id, Comment) ->
@@ -647,19 +679,22 @@ handle_retireuser(Cookie, Source, Id, Comment) ->
     {error, Reason} ->
       {error, Reason};
     {ok, Requester} ->
-      case mnesia:dirty_read(users, Id) of
-        [] ->
-          {error, no_user};
-        [UserRecord] ->
-          case UserRecord#users.status of
-            retire ->
-              {error, no_user};
-            _Status ->
-              Now = os:timestamp(),
-              mnesia:dirty_write(UserRecord#users{status=retire,
-                                                  status_comment=Comment,
-                                                  modified_on=Now,
-                                                  modified_by=Requester})
-          end
-      end
+      Now = os:timestamp(),
+      RetireUserFun = fun() ->
+        case mnesia:read(users, Id) of
+          [] ->
+            {error, no_user};
+          [UserRecord] ->
+            case UserRecord#users.status of
+              retire ->
+                {error, no_user};
+              _Status ->
+                mnesia:write(UserRecord#users{status=retire,
+                                                    status_comment=Comment,
+                                                    modified_on=Now,
+                                                    modified_by=Requester})
+            end
+        end
+      end,
+      mnesia:activity(transaction, RetireUserFun)
   end.
