@@ -34,7 +34,12 @@
          try_to_int/1,
          try_to_hexbin/1,
          try_to_hexbin_list/1,
-         now_to_iso8601/1]).
+         now_to_iso8601/1,
+         update/2,
+         get_keysforpage/3,
+         maps_to_record/3,
+         record_to_tuplelist/2,
+         readall/1]).
 
 %%=======================================================================%%
 %% API functions
@@ -365,3 +370,56 @@ try_to_hexbin_list(DataList) when is_list(DataList) ->
   [try_to_hexbin(Data)||Data<-DataList];
 try_to_hexbin_list(_DataListUnknown) ->
   [].
+
+update(Tuple1, Tuple2) when is_tuple(Tuple1),is_tuple(Tuple2) ->
+  list_to_tuple(update(tuple_to_list(Tuple1), tuple_to_list(Tuple2)));
+update(List1, List2) when is_list(List1),is_list(List2),
+                          length(List1) == length(List2) ->
+  update(List1, List2, []).
+
+update([H|T1], [H|T2], Update) ->
+  update(T1, T2, [H|Update]);
+update([H1|T1], [H2|T2], Update) when H2 == undefined ->
+  update(T1, T2, [H1|Update]);
+update([_H1|T1], [H2|T2], Update) ->
+  update(T1, T2, [H2|Update]);
+update([], [], Update) -> lists:reverse(Update).
+
+get_keysforpage(Keys, _PageNo, PageSize) when PageSize < 0 ->
+  {ok, Keys, 1};
+get_keysforpage(Keys, PageNo, PageSize) ->
+  TotalPages = length(Keys) div PageSize + 1,
+  if
+    PageNo > TotalPages ->
+      {error, invalid_page};
+    true ->
+      PageNoEnsure = if PageNo < 1 -> 1; true -> PageNo end,
+      FirstPosition = (PageNoEnsure - 1) * PageSize + 1,
+      {ok, lists:sublist(Keys, FirstPosition, PageSize), TotalPages}
+  end.
+
+maps_to_record(RecordName, Maps, Fields) ->
+  tuplelist_to_record(RecordName, maps:to_list(Maps), Fields).
+
+tuplelist_to_record(RecordName, TupleList, Fields) ->
+  list_to_tuple([RecordName|lists:map(
+                              fun(Field) ->
+                                  case lists:keyfind(Field,
+                                                     1,
+                                                     TupleList) of
+                                    false ->
+                                      undefined;
+                                    {_, Value} ->
+                                      Value
+                                  end
+                              end,
+                              Fields
+                             )]).
+
+record_to_tuplelist(Record, Fields) ->
+  [_|ValuesList] = tuple_to_list(Record),
+  lists:zip(Fields, ValuesList).
+
+readall(Table) ->
+  [io:format("~p~n", [mnesia:dirty_read(Table, Key)])||
+   Key <- mnesia:dirty_all_keys(Table)].

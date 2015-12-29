@@ -29,9 +29,11 @@ init([]) ->
     [{local, pine_gen_event}]}, permanent, 5000, worker, [dynamic]},
   {ok, { {one_for_one, 5, 10}, [OtherChild,
                                 ?CHILD(pine_mnesia, worker),
-                                ?CHILD(pine_pins, worker),
-                                ?CHILD(pine_pins_api, worker),
                                 ?CHILD(pine_user, worker),
                                 ?CHILD(pine_user_api, worker),
+                                ?CHILD(pine_pins, worker),
+                                ?CHILD(pine_pins_api, worker),
+                                ?CHILD(pine_template, worker),
+                                ?CHILD(pine_template_api, worker),
                                 ?CHILD(pine_web, worker)]} }.
 

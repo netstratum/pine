@@ -10,7 +10,7 @@
 %% Frequently used imports
 -import(pine_mnesia, [create_table/2, read_conf/2]).
 -import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2,
-                     did_it_happen/3, to/2]).
+                     did_it_happen/3, to/2, get_keysforpage/3]).
 
 %% API functions
 -export([start_link/0, login/3, logout/3, validate/2, chpassword/5,
@@ -507,18 +507,6 @@ handle_listusers(Cookie, Source, PageNo, PageSize) ->
        end
   end.
 
-get_keysforpage(Keys, _PageNo, PageSize) when PageSize < 0 ->
-  {ok, Keys, 1};
-get_keysforpage(Keys, PageNo, PageSize) ->
-  TotalPages = length(Keys) div PageSize + 1,
-  if
-    PageNo > TotalPages ->
-      {error, invalid_page};
-    true ->
-      PageNoEnsure = if PageNo < 1 -> 1; true -> PageNo end,
-      FirstPosition = (PageNoEnsure - 1) * PageSize + 1,
-      {ok, lists:sublist(Keys, FirstPosition, PageSize), TotalPages}
-  end.
 
 handle_searchuser(Cookie, Source, Name, Email, StartTS, EndTS,
                   PageNo, PageSize) ->
