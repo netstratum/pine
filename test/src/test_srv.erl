@@ -10,7 +10,7 @@
 -export([start/0, start/2, stop/1, open_pin/2, close_pin/2, burn_pin/2,
          change_password/2, add_user/2, list_users/2, list_roles/2,
          modify_user/2, search_users/2, getdetails_user/2, lock_user/2,
-         unlock_user/2, retire_user/2]).
+         unlock_user/2, retire_user/2, create_template/2, modify_template/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -83,6 +83,23 @@ unlock_user(TestName, {Id, Comment}) ->
 
 retire_user(TestName, {Id, Comment}) ->
   gen_server:call(TestName, {retire_user, Id, Comment}).
+
+create_template(TestName, {Name, LabelPattern, SeqPattern,
+                           ActualValue, Expiry, PinType,
+                           PinPattern}) ->
+  gen_server:call(TestName, {create_template,
+                             Name,
+                             LabelPattern,
+                             SeqPattern,
+                             ActualValue,
+                             Expiry,
+                             PinType,
+                             PinPattern}).
+modify_template(TestName, {Id, Notes, ActualValue}) ->
+  gen_server:call(TestName, {modify_template,
+                             Id,
+                             Notes,
+                             ActualValue}).
 
 init([Url, Username, Password]) ->
   case test_api:login(Url, Username, Password) of
@@ -172,6 +189,25 @@ handle_call({retire_user, Id, Comment}, _From, State) ->
                              State#state.token,
                              Id,
                              Comment),
+  {reply, Reply, State};
+handle_call({create_template, Name, LabelPattern, SeqPattern,
+             ActualValue, Expiry, PinType, PinPattern}, _From, State) ->
+  Reply = test_api:create_template(State#state.url,
+                                   State#state.token,
+                                   [{name, Name},
+                                    {label_pattern, LabelPattern},
+                                    {seq_pattern, SeqPattern},
+                                    {actual_value, ActualValue},
+                                    {expiry, Expiry},
+                                    {pin_type, PinType},
+                                    {pin_pattern, PinPattern}]),
+  {reply, Reply, State};
+handle_call({modify_template, Id, Notes, ActualValue}, _From, State) ->
+  Reply = test_api:modify_template(State#state.url,
+                                   State#state.token,
+                                   [{id, Id},
+                                    {notes, Notes},
+                                    actual_value, ActualValue]),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.

@@ -3,7 +3,7 @@
          close_pin/4, burn_pin/4, change_password/5,
          add_user/6, modify_user/8, list_users/4, search_users/8,
          getdetails_user/3, list_roles/4, lock_user/4, unlock_user/4,
-         retire_user/4]).
+         retire_user/4, create_template/3, modify_template/3]).
 
 login(Url, Username, Password) ->
   RequestBody = test_tools:encode_json(
@@ -237,6 +237,32 @@ retire_user(Url, Token, Id, Comment) ->
   RequestBody = test_tools:encode_json([{function, <<"identity.user.retire">>},
                                         {id, list_to_binary(Id)},
                                         {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+create_template(Url, Token, ParamList) ->
+  RequestBody = test_tools:encode_json([{function,
+                                         <<"order.template.create">>}|ParamList]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+modify_template(Url, Token, ParamList) ->
+  RequestBody = test_tools:encode_json([{function,
+                                         <<"order.template.modify">>}|ParamList]),
   case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
     {ok, StatusCode, _Headers, []} ->
       {ok, StatusCode};
