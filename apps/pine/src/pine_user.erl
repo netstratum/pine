@@ -10,7 +10,7 @@
 %% Frequently used imports
 -import(pine_mnesia, [create_table/2, read_conf/2]).
 -import(pine_tools, [uuid/0, md5/1, timestamp_diff_seconds/2,
-                     did_it_happen/3, to/2, get_keysforpage/3]).
+                     did_it_happen/3, to/2, get_keysforpage/3, has_ic/2]).
 
 %% API functions
 -export([start_link/0, login/3, logout/3, validate/2, chpassword/5,
@@ -541,18 +541,18 @@ filter_users(Keys, Filters) ->
 filter_users_bool(UserRecord, [{_Param, undefined}|Filters]) ->
   filter_users_bool(UserRecord, Filters);
 filter_users_bool(UserRecord, [{name, Name}|Filters]) ->
-  if
-    UserRecord#users.name == Name ->
-      true;
+  case has_ic(UserRecord#users.name, Name) of
+    false ->
+      filter_users_bool(UserRecord, Filters);
     true ->
-      filter_users_bool(UserRecord, Filters)
+      true
   end;
 filter_users_bool(UserRecord, [{email, Email}|Filters]) ->
-  if
-    UserRecord#users.email == Email ->
-      true;
+  case has_ic(UserRecord#users.email, Email) of
+    false ->
+      filter_users_bool(UserRecord, Filters);
     true ->
-      filter_users_bool(UserRecord, Filters)
+      true
   end;
 filter_users_bool(UserRecord, [{created, {StartTS, EndTS}}|Filters])
     when StartTS == undefined, EndTS == undefined ->

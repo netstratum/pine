@@ -6,7 +6,8 @@
 
 -import(pine_template, [create/2,
                         modify/2,
-                        list/3,
+                        list/2,
+                        search/6,
                         lock/3,
                         unlock/3,
                         retire/3]).
@@ -14,13 +15,20 @@
 -import(pine_tools, [maps_to_record/3,
                      try_to_int/1,
                      hexbin_to_bin/1,
-                     record_to_tuplelist/2]).
+                     record_to_tuplelist/2,
+                     iso8601_to_ts/1,
+                     bin_to_hexbin/1,
+                     try_to_hexbin/1,
+                     now_to_iso8601/1,
+                     try_to_iso8601/2,
+                     try_find_map/2]).
 
 %% API functions
 -export([start_link/0,
          create_api/1,
          modify_api/1,
          list_api/1,
+         search_api/1,
          lock_api/1,
          unlock_api/1,
          retire_api/1]).
@@ -61,9 +69,17 @@ create_api(#{http_token:=Cookie,
   Template = maps_to_record(templates,
                             Maps,
                             record_info(fields, templates)),
+  Expiry = binary_to_list(Template#templates.expiry),
+  ExpiryErlNow = case (catch iso8601_to_ts(Expiry)) of
+                   {'EXIT', _Reason} ->
+                     undefined;
+                   ErlNow ->
+                     ErlNow
+                 end,
+  TemplateV2 = Template#templates{expiry=ExpiryErlNow},
   case validate(Cookie, Source) of
     {ok, User} ->
-      create(User, Template);
+      create(User, TemplateV2);
     Error ->
       Error
   end.
@@ -82,10 +98,18 @@ modify_api(#{http_token:=Cookie,
                             record_info(fields, templates)),
   Id = Template#templates.id,
   IdBin = hexbin_to_bin(Id),
-  TemplateIdBin = Template#templates{id=IdBin},
+  Expiry = binary_to_list(Template#templates.expiry),
+  ExpiryErlNow = case (catch iso8601_to_ts(Expiry)) of
+                   {'EXIT', _Reason} ->
+                     undefined;
+                   ErlNow ->
+                     ErlNow
+                 end,
+  TemplateV2 = Template#templates{id=IdBin,
+                                  expiry=ExpiryErlNow},
   case validate(Cookie, Source) of
     {ok, User} ->
-      modify(User, TemplateIdBin);
+      modify(User, TemplateV2);
     Error ->
       Error
   end.
@@ -104,13 +128,41 @@ list_api(#{http_token:=Cookie,
   PageNoInt = try_to_int(PageNo),
   PageSizeInt = try_to_int(PageSize),
   case validate(Cookie, Source) of
-    {ok, User} ->
-      case list(User, PageNoInt, PageSizeInt) of
+    {ok, _User} ->
+      case list(PageNoInt, PageSizeInt) of
         {ok, Rows, TotalPages} ->
-          TemplateTupleList = [{record_to_tuplelist(Row,
-                                                    record_info(fields,
-                                                                templates))}
-                               ||Row <- Rows],
+          TemplateTupleList = mk_templateTupleList(Rows),
+          {ok, [{templates, TemplateTupleList},
+                {total_pages, TotalPages}]};
+        Other ->
+          Other
+      end;
+    Error ->
+      Error
+  end.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Search all templates api
+%%
+%% @spec search_api(ListMap) -> {ok, Templates} | {error, Error}
+%% @end
+%%--------------------------------------------------------------------
+search_api(#{http_token:=Cookie,
+           http_source:=Source,
+           page_no:=PageNo,
+           page_size:=PageSize} = Maps) ->
+  Name = try_find_map(name, Maps),
+  Notes = try_find_map(notes, Maps),
+  StartTS = try_find_map(start_ts, Maps),
+  EndTS = try_find_map(end_ts, Maps),
+  PageNoInt = try_to_int(PageNo),
+  PageSizeInt = try_to_int(PageSize),
+  case validate(Cookie, Source) of
+    {ok, _User} ->
+      case search(Name, Notes, StartTS, EndTS, PageNoInt, PageSizeInt) of
+        {ok, Rows, TotalPages} ->
+          TemplateTupleList = mk_templateTupleList(Rows),
           {ok, [{templates, TemplateTupleList},
                 {total_pages, TotalPages}]};
         Other ->
@@ -209,6 +261,10 @@ init([]) ->
                                arguments = [page_no, page_size],
                                handler = {?MODULE, list_api},
                                created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.template.search">>,
+                               arguments = [page_no, page_size],
+                               handler = {?MODULE, search_api},
+                               created_on = Now}),
     mnesia:write(#api_handlers{function = <<"order.template.lock">>,
                                arguments = [id, comment],
                                handler = {?MODULE, lock_api},
@@ -297,3 +353,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+mk_templateTupleList(Rows) ->
+  lists:map(fun(Row) ->
+              RowU = Row#templates{id=bin_to_hexbin(Row#templates.id),
+                                   expiry=now_to_iso8601(
+                                    Row#templates.expiry
+                                   ),
+                                   created_on=try_to_iso8601(
+                                    Row#templates.created_on,
+                                    undefined
+                                   ),
+                                   created_by=try_to_hexbin(
+                                    Row#templates.created_by
+                                   ),
+                                   modified_on=try_to_iso8601(
+                                    Row#templates.modified_on,
+                                    undefined
+                                   ),
+                                   modified_by=try_to_hexbin(
+                                    Row#templates.modified_by
+                                   )
+                                  },
+              {record_to_tuplelist(RowU, record_info(fields, templates))}
+            end,
+            Rows
+          ).
+

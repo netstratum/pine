@@ -35,11 +35,15 @@
          try_to_hexbin/1,
          try_to_hexbin_list/1,
          now_to_iso8601/1,
+         try_to_iso8601/2,
          update/2,
          get_keysforpage/3,
          maps_to_record/3,
          record_to_tuplelist/2,
-         readall/1]).
+         readall/1,
+         iso8601_to_ts/1,
+         has/2,
+         has_ic/2]).
 
 %%=======================================================================%%
 %% API functions
@@ -310,6 +314,24 @@ to_seconds(Data) ->
   io:format("Unable to transform ~p into seconds~n", [Data]),
   0.
 
+try_to_iso8601({A, B, C}, Default) ->
+  case (catch now_to_iso8601({A, B, C})) of
+    {'EXIT', _Reason} ->
+      Default;
+    Result ->
+      Result
+  end;
+try_to_iso8601({{YYYY, MM, DD}, {H, M, S}}, Default) ->
+  case (catch lists:flatten(io_lib:format("~p-~p-~pT~p:~p:~p",
+                                          [YYYY, MM, DD, H, M, S]))) of
+    {'EXIT', _Reason} ->
+      Default;
+    Result ->
+      Result
+  end;
+try_to_iso8601(_Other, Default) ->
+  Default.
+
 now_to_iso8601({A, B, C}) ->
   {{YYYY, MM, DD}, {H, M, S}} = calendar:now_to_local_time({A,B,C}),
   lists:flatten(io_lib:format("~p-~p-~pT~p:~p:~p", [YYYY, MM, DD, H, M, S])).
@@ -423,3 +445,22 @@ record_to_tuplelist(Record, Fields) ->
 readall(Table) ->
   [io:format("~p~n", [mnesia:dirty_read(Table, Key)])||
    Key <- mnesia:dirty_all_keys(Table)].
+
+iso8601_to_ts(Iso8601) ->
+  Tokens = string:tokens(Iso8601, "-T:"),
+  [YYYY, MM, DD, H, M, S] = [list_to_integer(S) || S <- Tokens],
+  DateTime = {{YYYY, MM, DD}, {H, M, S}},
+  Seconds = calendar:datetime_to_gregorian_seconds(DateTime) - 62167219200,
+  {Seconds div 1000000, Seconds rem 1000000, 0}.
+
+has_ic(String, SubString) ->
+  has(string:to_lower(to(string, String)),
+      string:to_lower(to(string, SubString))).
+
+has(String, SubString) ->
+  case string:str(String, SubString) of
+    0 ->
+      false;
+    _ ->
+      true
+  end.

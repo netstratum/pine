@@ -6,14 +6,15 @@
 
 %% Imports
 -import(pine_mnesia, [create_table/2]).
--import(pine_tools, [uuid/0, update/2, get_keysforpage/3]).
+-import(pine_tools, [uuid/0, update/2, get_keysforpage/3,
+                     to/2, did_it_happen/3, has_ic/2]).
 
 %% API functions
 -export([start_link/0,
          create/2,
          modify/2,
-         list/3,
-         search/5,
+         list/2,
+         search/6,
          lock/3,
          unlock/3,
          retire/3]).
@@ -69,8 +70,8 @@ modify(User, Template) ->
 %% @spec list(User, PageNo, PageSize) -> {ok, Templates} | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-list(User, PageNo, PageSize) ->
-  gen_server:call(?MODULE, {list, User, PageNo, PageSize}).
+list(PageNo, PageSize) ->
+  gen_server:call(?MODULE, {list, PageNo, PageSize}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -80,8 +81,9 @@ list(User, PageNo, PageSize) ->
 %%            {ok, Templates} | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-search(User, Name, Notes, StartTS, EndTS) ->
-  gen_server:call(?MODULE, {search, User, Name, Notes, StartTS, EndTS}).
+search(Name, Notes, StartTS, EndTS, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {search, Name, Notes, StartTS, EndTS, PageNo,
+                            PageSize}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -152,12 +154,12 @@ handle_call({create, User, Template}, _From, State) ->
 handle_call({modify, User, Template}, _From, State) ->
   Reply = handle_modify(User, Template),
   {reply, Reply, State};
-handle_call({list, User, PageNo, PageSize}, _From, State) ->
-  Reply = handle_list(User, PageNo, PageSize),
+handle_call({list, PageNo, PageSize}, _From, State) ->
+  Reply = handle_list(PageNo, PageSize),
   {reply, Reply, State};
-handle_call({search, User, Name, Notes, StartTS, EndTS},
+handle_call({search, Name, Notes, StartTS, EndTS, PageNo, PageSize},
             _From, State) ->
-  Reply = handle_search(User, Name, Notes, StartTS, EndTS),
+  Reply = handle_search(Name, Notes, StartTS, EndTS, PageNo, PageSize),
   {reply, Reply, State};
 handle_call({lock, User, Id, Comment}, _From, State) ->
   Reply = handle_lock(User, Id, Comment),
@@ -266,7 +268,7 @@ handle_modify(User, Template) when is_record(Template, templates) ->
     case mnesia:read(templates, Template#templates.id) of
       [] ->
         {error, no_record};
-      PrevTemplate ->
+      [PrevTemplate] ->
         NewTemplate = update(PrevTemplate, Template),
         mnesia:write(NewTemplate#templates{modified_on=Now,
                                            modified_by=User})
@@ -276,21 +278,89 @@ handle_modify(User, Template) when is_record(Template, templates) ->
 handle_modify(_User, _Template) ->
   {error, bad_record}.
 
-handle_list(_User, PageNo, PageSize) ->
+handle_list(PageNo, PageSize) ->
   Keys = mnesia:dirty_all_keys(templates),
   case get_keysforpage(Keys, PageNo, PageSize) of
     {ok, KeysSublist, TotalPages} ->
-      Rows = lists:flatten(lists:map(
-        fun(Key) -> mnesia:dirty_read(users, Key) end,
+      Rows = lists:filtermap(
+        fun(Key) ->
+            [Rec] = mnesia:dirty_read(templates, Key),
+            if
+              Rec#templates.status == retire -> false;
+              true -> {true, Rec}
+            end
+        end,
         KeysSublist
-      )),
+      ),
       {ok, Rows, TotalPages};
     Error ->
       Error
   end.
 
-handle_search(_User, _Name, _Notes, _StartTS, _EndTS) ->
-  ok.
+handle_search(Name, Notes, StartTS, EndTS,
+              PageNo, PageSize) ->
+  Keys = mnesia:dirty_all_keys(templates),
+  FilteredKeys = filter_templates(Keys, [{name, Name},
+                                         {notes, Notes},
+                                         {created, {StartTS, EndTS}}]),
+  case get_keysforpage(FilteredKeys, to(int, PageNo), to(int, PageSize)) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, KeysSublist, TotalPages} ->
+      Rows = lists:filtermap(
+               fun(Key) ->
+                   [Rec] = mnesia:dirty_read(templates, Key),
+                   if
+                     Rec#templates.status == retire -> false;
+                     true -> {true, Rec}
+                   end
+               end,
+               KeysSublist
+              ),
+      {ok, Rows, TotalPages}
+  end.
+
+filter_templates(Keys, Filters) ->
+  lists:filter(
+    fun(Key) ->
+        [TemplateRecord] = mnesia:dirty_read(templates, Key),
+        filter_templates_bool(TemplateRecord, Filters)
+    end,
+    Keys
+   ).
+
+filter_templates_bool(TemplateRecord, [{_Param, undefined}|Filters]) ->
+  filter_templates_bool(TemplateRecord, Filters);
+filter_templates_bool(TemplateRecord, [{name, Name}|Filters]) ->
+  case has_ic(TemplateRecord#templates.name, Name) of
+    false ->
+      filter_templates_bool(TemplateRecord, Filters);
+    true ->
+      true
+  end;
+filter_templates_bool(TemplateRecord, [{notes, Notes}|Filters]) ->
+  case has_ic(TemplateRecord#templates.notes, Notes) of
+    false ->
+      filter_templates_bool(TemplateRecord, Filters);
+    true ->
+      true
+  end;
+filter_templates_bool(TemplateRecord, [{created, {StartTS, EndTS}}|Filters])
+    when StartTS == undefined, EndTS == undefined ->
+  filter_templates_bool(TemplateRecord, Filters);
+filter_templates_bool(TemplateRecord, [{created, {StartTS, EndTS}}|Filters]) ->
+  TemplateCreatedOn = TemplateRecord#templates.created_on,
+  CreatedSeconds = to(seconds, TemplateCreatedOn),
+  StartTSSeconds = to(seconds, StartTS),
+  EndTSSeconds = to(seconds, EndTS),
+  case did_it_happen(CreatedSeconds, StartTSSeconds, EndTSSeconds) of
+    true ->
+      true;
+    _ ->
+      filter_templates_bool(TemplateRecord, Filters)
+  end;
+filter_templates_bool(_TemplateRecord, []) ->
+  false.
 
 handle_lock(User, Id, Comment) ->
   Now = os:timestamp(),

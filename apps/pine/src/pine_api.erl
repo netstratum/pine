@@ -28,6 +28,9 @@ handle_post(<<"POST">>, true, Req) ->
     {'EXIT', Reason} ->
       io:format("Exception ~p~n", [Reason]),
       cowboy_req:reply(500, Req4);
+    {error, Reason} ->
+      io:format("Error ~p~n", [Reason]),
+      cowboy_req:reply(500, Req4);
     {StatusCode, []} ->
       cowboy_req:reply(StatusCode, [], [], Req4);
     {StatusCode, JsonResponse} ->

@@ -10,7 +10,9 @@
 -export([start/0, start/2, stop/1, open_pin/2, close_pin/2, burn_pin/2,
          change_password/2, add_user/2, list_users/2, list_roles/2,
          modify_user/2, search_users/2, getdetails_user/2, lock_user/2,
-         unlock_user/2, retire_user/2, create_template/2, modify_template/2]).
+         unlock_user/2, retire_user/2, create_template/2, modify_template/2,
+         list_templates/2, lock_template/2, unlock_template/2,
+         retire_template/2, search_template/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -100,6 +102,30 @@ modify_template(TestName, {Id, Notes, ActualValue}) ->
                              Id,
                              Notes,
                              ActualValue}).
+
+list_templates(TestName, {PageNo, PageSize}) ->
+  gen_server:call(TestName, {list_templates,
+                             PageNo,
+                             PageSize}).
+
+search_template(TestName, {Name, Notes, StartTS, EndTS, PageNo, PageSize}) ->
+  gen_server:call(TestName, {search_template,
+                             Name,
+                             Notes,
+                             StartTS,
+                             EndTS,
+                             PageNo,
+                             PageSize}).
+
+lock_template(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {lock_template, Id, Comment}).
+
+unlock_template(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {unlock_template, Id, Comment}).
+
+retire_template(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {retire_template, Id, Comment}).
+
 
 init([Url, Username, Password]) ->
   case test_api:login(Url, Username, Password) of
@@ -207,7 +233,42 @@ handle_call({modify_template, Id, Notes, ActualValue}, _From, State) ->
                                    State#state.token,
                                    [{id, Id},
                                     {notes, Notes},
-                                    actual_value, ActualValue]),
+                                    {actual_value, ActualValue}]),
+  {reply, Reply, State};
+handle_call({list_templates, PageNo, PageSize}, _From, State) ->
+  Reply = test_api:list_templates(State#state.url,
+                                  State#state.token,
+                                  PageNo,
+                                  PageSize),
+  {reply, Reply, State};
+handle_call({search_template, Name, Notes, StartTS, EndTS, PageNo, PageSize},
+            _From, State) ->
+  Reply = test_api:search_template(State#state.url,
+                                   State#state.token,
+                                   Name,
+                                   Notes,
+                                   StartTS,
+                                   EndTS,
+                                   PageNo,
+                                   PageSize),
+  {reply, Reply, State};
+handle_call({lock_template, Id, Comment}, _From, State) ->
+  Reply = test_api:lock_template(State#state.url,
+                                 State#state.token,
+                                 Id,
+                                 Comment),
+  {reply, Reply, State};
+handle_call({unlock_template, Id, Comment}, _From, State) ->
+  Reply = test_api:unlock_template(State#state.url,
+                                   State#state.token,
+                                   Id,
+                                   Comment),
+  {reply, Reply, State};
+handle_call({retire_template, Id, Comment}, _From, State) ->
+  Reply = test_api:retire_template(State#state.url,
+                                   State#state.token,
+                                   Id,
+                                   Comment),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.

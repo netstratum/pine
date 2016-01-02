@@ -3,7 +3,9 @@
          close_pin/4, burn_pin/4, change_password/5,
          add_user/6, modify_user/8, list_users/4, search_users/8,
          getdetails_user/3, list_roles/4, lock_user/4, unlock_user/4,
-         retire_user/4, create_template/3, modify_template/3]).
+         retire_user/4, create_template/3, modify_template/3,
+         list_templates/4, lock_template/4, unlock_template/4,
+         retire_template/4, search_template/8]).
 
 login(Url, Username, Password) ->
   RequestBody = test_tools:encode_json(
@@ -247,9 +249,13 @@ retire_user(Url, Token, Id, Comment) ->
       {error, Reason}
   end.
 
+removeEmptyBinary(ParamList) ->
+  [{Param, Value}||{Param, Value} <- ParamList, Value =/= <<>>].
+
 create_template(Url, Token, ParamList) ->
+  ParamListBin = [{Param, list_to_binary(Value)}||{Param, Value} <- ParamList],
   RequestBody = test_tools:encode_json([{function,
-                                         <<"order.template.create">>}|ParamList]),
+                                         <<"order.template.create">>}|ParamListBin]),
   case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
     {ok, StatusCode, _Headers, []} ->
       {ok, StatusCode};
@@ -261,8 +267,9 @@ create_template(Url, Token, ParamList) ->
   end.
 
 modify_template(Url, Token, ParamList) ->
+  ParamListBin = [list_to_binary(Param)||Param <- ParamList],
   RequestBody = test_tools:encode_json([{function,
-                                         <<"order.template.modify">>}|ParamList]),
+                                         <<"order.template.modify">>}|ParamListBin]),
   case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
     {ok, StatusCode, _Headers, []} ->
       {ok, StatusCode};
@@ -273,5 +280,78 @@ modify_template(Url, Token, ParamList) ->
       {error, Reason}
   end.
 
-removeEmptyBinary(ParamList) ->
-  [{Param, Value}||{Param, Value} <- ParamList, Value =/= <<>>].
+list_templates(Url, Token, PageNo, PageSize) ->
+  RequestBody = test_tools:encode_json([{function, <<"order.template.list">>},
+                                        {page_no, list_to_binary(PageNo)},
+                                        {page_size, list_to_binary(PageSize)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+lock_template(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"order.template.lock">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+unlock_template(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"order.template.unlock">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+retire_template(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"order.template.retire">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+search_template(Url, Token, Name, Notes, StartTS, EndTS, PageNo, PageSize) ->
+  RequestBody = test_tools:encode_json(
+                  removeEmptyBinary([{function, <<"order.template.search">>},
+                                     {name, list_to_binary(Name)},
+                                     {notes, list_to_binary(Notes)},
+                                     {start_ts, list_to_binary(StartTS)},
+                                     {end_ts, list_to_binary(EndTS)},
+                                     {page_no, list_to_binary(PageNo)},
+                                     {page_size, list_to_binary(PageSize)}])),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
