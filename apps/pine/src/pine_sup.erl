@@ -35,5 +35,7 @@ init([]) ->
                                 ?CHILD(pine_pins_api, worker),
                                 ?CHILD(pine_template, worker),
                                 ?CHILD(pine_template_api, worker),
+                                ?CHILD(pine_order, worker),
+                                ?CHILD(pine_order_api, worker),
                                 ?CHILD(pine_web, worker)]} }.
 
