@@ -8,7 +8,11 @@
                      try_find_map/2,
                      try_to_int/1,
                      record_to_tuplelist/2,
-                     hexbin_to_bin/1]).
+                     iso8601_to_ts/1,
+                     hexbin_to_bin/1,
+                     try_to_hexbin/1,
+                     try_to_iso8601/2,
+                     bin_to_hexbin/1]).
 -import(pine_user, [validate/2]).
 -import(pine_order, [create/2,
                      modify/2,
@@ -64,9 +68,7 @@ start_link() ->
 
 create_api(#{http_token:=Cookie,
              http_source:=Source} = Maps) ->
-  Order = maps_to_record(orders,
-                         Maps,
-                         record_info(fields, orders)),
+  Order = maps_to_orderRecord(Maps),
   case validate(Cookie, Source) of
     {ok, User} ->
       create(User, Order);
@@ -76,15 +78,46 @@ create_api(#{http_token:=Cookie,
 
 modify_api(#{http_token:=Cookie,
              http_source:=Source} = Maps) ->
-  Order = maps_to_record(orders,
-                         Maps,
-                         record_info(fields, orders)),
+  Order = maps_to_orderRecord(Maps),
   case validate(Cookie, Source) of
     {ok, User} ->
       modify(User, Order);
     Error ->
       Error
   end.
+
+maps_to_orderRecord(Maps) ->
+  Order = maps_to_record(orders,
+                         Maps,
+                         record_info(fields, orders)),
+  IdV2 = case Order#orders.id of
+           undefined ->
+             undefined;
+           Id ->
+             hexbin_to_bin(Id)
+         end,
+  ScheduleV2 = case Order#orders.schedule of
+                 undefined ->
+                   undefined;
+                 Schedule ->
+                   ScheduleList = binary_to_list(Schedule),
+                   case (catch iso8601_to_ts(ScheduleList)) of
+                     {'EXIT', _Reason} ->
+                       undefined;
+                     ErlNow ->
+                       ErlNow
+                   end
+               end,
+  CryptoKeyV2 = case Order#orders.crypto_key of
+                  undefined ->
+                    undefined;
+                  CryptoKey ->
+                    hexbin_to_bin(CryptoKey)
+                end,
+  Order#orders{id=IdV2,
+               schedule=ScheduleV2,
+               crypto_key=CryptoKeyV2}.
+
 
 search_api(#{http_token:=Cookie,
              http_source:=Source,
@@ -219,6 +252,51 @@ activate_api(#{http_token:=Cookie,
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
+  Now = os:timestamp(),
+  InitApiFun = fun() ->
+    mnesia:write(#api_handlers{function = <<"order.create">>,
+                               arguments = [name, pin_template,
+                                            pin_count],
+                               handler = {?MODULE, create_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.modify">>,
+                               arguments = [id, modified_comments],
+                               handler = {?MODULE, modify_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.search">>,
+                               arguments = [page_no, page_size],
+                               handler = {?MODULE, search_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.list">>,
+                               arguments = [page_no, page_size],
+                               handler = {?MODULE, list_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.lock">>,
+                               arguments = [id, comment],
+                               handler = {?MODULE, lock_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.unlock">>,
+                               arguments = [id, comment],
+                               handler = {?MODULE, unlock_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.retire">>,
+                               arguments = [id, comment],
+                               handler = {?MODULE, retire_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.approve">>,
+                               arguments = [id, comment],
+                               handler = {?MODULE, approve_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.reject">>,
+                               arguments = [id, comment],
+                               handler = {?MODULE, reject_api},
+                               created_on = Now}),
+    mnesia:write(#api_handlers{function = <<"order.activate">>,
+                               arguments = [id, comment],
+                               handler = {?MODULE, activate_api},
+                               created_on = Now})
+  end,
+  mnesia:activity(transaction, InitApiFun),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -297,7 +375,32 @@ code_change(_OldVsn, State, _Extra) ->
 mk_orderTupleList(Rows) ->
   lists:map(
     fun(Row) ->
-        {record_to_tuplelist(Row, record_info(fields, orders))}
+        RowU = Row#orders{id=bin_to_hexbin(Row#orders.id),
+                          crypto_key=try_to_hexbin(Row#orders.crypto_key),
+                          schedule=try_to_iso8601(Row#orders.schedule,
+                                                  undefined),
+                          status_on=try_to_iso8601(Row#orders.status_on,
+                                                  undefined),
+                          status_by=try_to_hexbin(Row#orders.status_by),
+                          created_on=try_to_iso8601(Row#orders.created_on,
+                                                   undefined),
+                          created_by=try_to_hexbin(Row#orders.created_by),
+                          modified_on=try_to_iso8601(Row#orders.modified_on,
+                                                    undefined),
+                          modified_by=try_to_hexbin(Row#orders.modified_by),
+                          approved_on=try_to_iso8601(Row#orders.approved_on,
+                                                    undefined),
+                          approved_by=try_to_hexbin(Row#orders.approved_by),
+                          activated_on=try_to_iso8601(Row#orders.activated_on,
+                                                     undefined),
+                          activated_by=try_to_hexbin(Row#orders.activated_by),
+                          generate_starttime=try_to_iso8601(
+                                               Row#orders.generate_starttime,
+                                               undefined),
+                          generate_endtime=try_to_iso8601(
+                                             Row#orders.generate_endtime,
+                                             undefined)},
+        {record_to_tuplelist(RowU, record_info(fields, orders))}
     end,
     Rows
    ).

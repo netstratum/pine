@@ -72,7 +72,7 @@ create_api(#{http_token:=Cookie,
   Expiry = binary_to_list(Template#templates.expiry),
   ExpiryErlNow = case (catch iso8601_to_ts(Expiry)) of
                    {'EXIT', _Reason} ->
-                     undefined;
+                     {error, invalid_expiry};
                    ErlNow ->
                      ErlNow
                  end,

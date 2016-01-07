@@ -4,6 +4,7 @@
 
 -include("pine_mnesia.hrl").
 
+-import(pine_mnesia, [create_table/2]).
 -import(pine_tools, [uuid/0,
                      update/2,
                      get_keysforpage/3,
@@ -16,6 +17,7 @@
          create/2,
          modify/2,
          search/7,
+         list/2,
          lock/3,
          unlock/3,
          retire/3,
@@ -72,12 +74,22 @@ modify(User, Order) ->
 %% Search an order
 %%
 %% @spec search(Name, Notes, Label, StartTS, EndTS,
-%%              PageNo, PageSize) -> ok | {error, Error}
+%%              PageNo, PageSize) -> {ok, Rows, TotalPages} | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 search(Name, Notes, Label, StartTS, EndTS, PageNo, PageSize) ->
   gen_server:call(?MODULE, {search, Name, Notes, Label, StartTS,
                             EndTS, PageNo, PageSize}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% List all ordere
+%%
+%% @spec list(PageNo, PageSize) -> {ok, Rows, TotalPages} | {error, Error}
+%% @end
+%%--------------------------------------------------------------------
+list(PageNo, PageSize) ->
+  gen_server:call(?MODULE, {list, PageNo, PageSize}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -155,6 +167,7 @@ activate(User, Id, Comment) ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
+  init_tables(),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -181,6 +194,9 @@ handle_call({search, Name, Notes, Label, StartTS,
              EndTS, PageNo, PageSize}, _From, State) ->
   Reply = handle_search(Name, Notes, Label, StartTS,
                         EndTS, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({list, PageNo, PageSize}, _From, State) ->
+  Reply = handle_list(PageNo, PageSize),
   {reply, Reply, State};
 handle_call({lock, User, Id, Comment}, _From, State) ->
   Reply = handle_lock(User, Id, Comment),
@@ -259,6 +275,15 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+init_tables() ->
+  lists:map(
+    fun({Table, Options}) -> create_table(Table, Options) end,
+    [{orders, [{disc_copies, [node()]},
+               {attributes, record_info(fields, orders)},
+               {index, [name]}]}]
+   ),
+  mnesia:wait_for_tables([orders], 2500).
+
 handle_create(User, Order) when is_record(Order, orders) ->
   Id = uuid(),
   Now = os:timestamp(),
@@ -309,7 +334,7 @@ handle_search(Name, Notes, Label, StartTS, EndTS, PageNo, PageSize) ->
                                       {notes, Notes},
                                       {label, Label},
                                       {created, {StartTS, EndTS}}]),
-  case get_keysforpage(FilteredKeys, to(int, PageNo), to(ine, PageSize)) of
+  case get_keysforpage(FilteredKeys, to(int, PageNo), to(int, PageSize)) of
     {error, Reason} ->
       {error, Reason};
     {ok, KeysSubList, TotalPages} ->
@@ -365,10 +390,27 @@ filter_orders_bool(OrderRecord, [{created, {StartTS, EndTS}}|Filters]) ->
 filter_orders_bool(_OrderRecord, []) ->
   false.
 
+handle_list(PageNo, PageSize) ->
+  Keys = mnesia:dirty_all_keys(orders),
+  case get_keysforpage(Keys, to(int, PageNo), to(int, PageSize)) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, KeysSubList, TotalPages} ->
+      Rows = lists:map(
+               fun(Key) ->
+                   [Rec] = mnesia:dirty_read(orders, Key),
+                   Rec
+               end,
+               KeysSubList
+              ),
+      {ok, Rows, TotalPages}
+  end.
+
+
 handle_lock(User, Id, Comment) ->
   Now = os:timestamp(),
   LockOrderFun = fun() ->
-    case mnesia:dirty_read(order, Id) of
+    case mnesia:dirty_read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -388,7 +430,7 @@ handle_lock(User, Id, Comment) ->
 handle_unlock(User, Id, Comment) ->
   Now = os:timestamp(),
   UnlockOrderFun = fun() ->
-    case mnesia:dirty_read(order, Id) of
+    case mnesia:dirty_read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -408,7 +450,7 @@ handle_unlock(User, Id, Comment) ->
 handle_retire(User, Id, Comment) ->
   Now = os:timestamp(),
   RetireOrderFun = fun() ->
-    case mnesia:dirty_read(order, Id) of
+    case mnesia:dirty_read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -431,7 +473,7 @@ handle_retire(User, Id, Comment) ->
 handle_approve(User, Id, Comment) ->
   Now = os:timestamp(),
   ApproveOrderFun = fun() ->
-    case mnesia:dirty_read(order, Id) of
+    case mnesia:dirty_read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -453,7 +495,7 @@ handle_approve(User, Id, Comment) ->
 handle_reject(User, Id, Comment) ->
   Now = os:timestamp(),
   RejectOrderFun = fun() ->
-    case mnesia:dirty_read(order, Id) of
+    case mnesia:dirty_read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -477,7 +519,7 @@ handle_reject(User, Id, Comment) ->
 handle_activate(User, Id, Comment) ->
   Now = os:timestamp(),
   ActivateOrderFun = fun() ->
-    case mnesia:dirty_read(order, Id) of
+    case mnesia:dirty_read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->

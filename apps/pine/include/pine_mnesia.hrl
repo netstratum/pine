@@ -145,7 +145,7 @@
     id,
     name,
     notes,
-    imported_flag,
+    imported_flag = false,
     pin_template,
     label_fillers,
     seq_fillers,

@@ -12,7 +12,10 @@
          modify_user/2, search_users/2, getdetails_user/2, lock_user/2,
          unlock_user/2, retire_user/2, create_template/2, modify_template/2,
          list_templates/2, lock_template/2, unlock_template/2,
-         retire_template/2, search_template/2]).
+         retire_template/2, search_template/2, create_order/2,
+         modify_order/2, search_order/2, list_order/2, lock_order/2,
+         unlock_order/2, retire_order/2, approve_order/2, reject_order/2,
+         activate_order/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3,
          terminate/2]).
 
@@ -126,6 +129,47 @@ unlock_template(TestName, {Id, Comment}) ->
 retire_template(TestName, {Id, Comment}) ->
   gen_server:call(TestName, {retire_template, Id, Comment}).
 
+create_order(TestName, {Name, PinTemplate, PinCount}) ->
+  gen_server:call(TestName, {create_order,
+                             Name,
+                             PinTemplate,
+                             PinCount}).
+
+modify_order(TestName, {Id, Name, Notes, PinCount, Comment}) ->
+  gen_server:call(TestName, {modify_order,
+                             Id,
+                             Name,
+                             Notes,
+                             PinCount,
+                             Comment}).
+
+search_order(TestName, {Name, Notes, PageNo, PageSize}) ->
+  gen_server:call(TestName, {search_order,
+                             Name,
+                             Notes,
+                             PageNo,
+                             PageSize}).
+
+list_order(TestName, {PageNo, PageSize}) ->
+  gen_server:call(TestName, {list_order, PageNo, PageSize}).
+
+lock_order(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {lock_order, Id, Comment}).
+
+unlock_order(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {unlock_order, Id, Comment}).
+
+retire_order(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {retire_order, Id, Comment}).
+
+approve_order(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {approve_order, Id, Comment}).
+
+reject_order(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {reject_order, Id, Comment}).
+
+activate_order(TestName, {Id, Comment}) ->
+  gen_server:call(TestName, {activate_order, Id, Comment}).
 
 init([Url, Username, Password]) ->
   case test_api:login(Url, Username, Password) of
@@ -269,6 +313,68 @@ handle_call({retire_template, Id, Comment}, _From, State) ->
                                    State#state.token,
                                    Id,
                                    Comment),
+  {reply, Reply, State};
+handle_call({create_order, Name, PinTemplate, PinCount}, _From, State) ->
+  Reply = test_api:create_order(State#state.url,
+                                State#state.token,
+                                Name,
+                                PinTemplate,
+                                PinCount),
+  {reply, Reply, State};
+handle_call({modify_order, Id, Name, Notes, PinCount, Comment},
+            _From, State) ->
+  Reply = test_api:modify_order(State#state.url,
+                                State#state.token,
+                                Id, Name, Notes, PinCount,
+                                Comment),
+  {reply, Reply, State};
+handle_call({search_order, Name, Notes, PageNo, PageSize},
+            _From, State) ->
+  Reply = test_api:search_order(State#state.url,
+                                State#state.token,
+                                Name, Notes, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({list_order, PageNo, PageSize}, _From, State) ->
+  Reply = test_api:list_order(State#state.url,
+                              State#state.token,
+                              PageNo,
+                              PageSize),
+  {reply, Reply, State};
+handle_call({lock_order, Id, Comment}, _From, State) ->
+  Reply = test_api:lock_order(State#state.url,
+                              State#state.token,
+                              Id,
+                              Comment),
+  {reply, Reply, State};
+handle_call({unlock_order, Id, Comment}, _From, State) ->
+  Reply = test_api:unlock_order(State#state.url,
+                                State#state.token,
+                                Id,
+                                Comment),
+  {reply, Reply, State};
+handle_call({retire_order, Id, Comment}, _From, State) ->
+  Reply = test_api:retire_order(State#state.url,
+                                State#state.token,
+                                Id,
+                                Comment),
+  {reply, Reply, State};
+handle_call({approve_order, Id, Comment}, _From, State) ->
+  Reply = test_api:approve_order(State#state.url,
+                                 State#state.token,
+                                 Id,
+                                 Comment),
+  {reply, Reply, State};
+handle_call({reject_order, Id, Comment}, _From, State) ->
+  Reply = test_api:reject_order(State#state.url,
+                                State#state.token,
+                                Id,
+                                Comment),
+  {reply, Reply, State};
+handle_call({activate_order, Id, Comment}, _From, State) ->
+  Reply = test_api:activate_order(State#state.url,
+                                  State#state.token,
+                                  Id,
+                                  Comment),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
