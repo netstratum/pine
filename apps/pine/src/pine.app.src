@@ -9,7 +9,9 @@
                   sasl,
                   mnesia,
                   crypto,
-                  cowboy
+                  cowboy,
+                  jiffy,
+                  uuid
                  ]},
   {mod, { pine_app, []}},
   {env, []}
