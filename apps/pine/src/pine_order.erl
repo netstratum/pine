@@ -287,22 +287,31 @@ init_tables() ->
 handle_create(User, Order) when is_record(Order, orders) ->
   Id = uuid(),
   Now = os:timestamp(),
-  CreateOrderFun = fun() ->
-    case mnesia:index_read(orders,
-                           Order#orders.name,
-                           #orders.name) of
-      [] ->
-        mnesia:write(Order#orders{id=Id,
-                                  status=create,
-                                  created_on=Now,
-                                  created_by=User});
-      _ ->
-        {error, already_exists}
-    end
-  end,
-  mnesia:activity(transaction, CreateOrderFun);
+  case check_createOrder(Order) of
+    ok ->
+      CreateOrderFun = fun() ->
+        case mnesia:index_read(orders,
+                               Order#orders.name,
+                               #orders.name) of
+          [] ->
+            mnesia:write(Order#orders{id=Id,
+                                      status=create,
+                                      created_on=Now,
+                                      created_by=User});
+          _ ->
+            {error, already_exists}
+        end
+      end,
+      mnesia:activity(transaction, CreateOrderFun);
+    Error ->
+      Error
+  end;
 handle_create(_User, _Order) ->
   {error, bad_record}.
+
+check_createOrder(Order) ->
+  TemplateId = Order#orders.pin_template,
+  pine_template:check(TemplateId).
 
 handle_modify(User, Order) when is_record(Order, orders) ->
   Now = os:timestamp(),

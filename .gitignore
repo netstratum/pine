@@ -12,3 +12,6 @@ rel/pine
 *.deb
 .concrete/DEV_MODE
 erl_crash.dump
+pkg/rpm
+pkg/deb
+pkg/tar

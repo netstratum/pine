@@ -13,6 +13,7 @@
 -export([start_link/0,
          create/2,
          modify/2,
+         check/1,
          list/2,
          search/6,
          lock/3,
@@ -62,6 +63,16 @@ create(User, Template) ->
 %%--------------------------------------------------------------------
 modify(User, Template) ->
   gen_server:call(?MODULE, {modify, User, Template}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Check template
+%%
+%% @spec check(Template) -> ok | {error, Error}
+%% @end
+%%--------------------------------------------------------------------
+check(TemplateId) ->
+  gen_server:call(?MODULE, {check, TemplateId}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -153,6 +164,9 @@ handle_call({create, User, Template}, _From, State) ->
   {reply, Reply, State};
 handle_call({modify, User, Template}, _From, State) ->
   Reply = handle_modify(User, Template),
+  {reply, Reply, State};
+handle_call({check, TemplateId}, _From, State) ->
+  Reply = handle_check(TemplateId),
   {reply, Reply, State};
 handle_call({list, PageNo, PageSize}, _From, State) ->
   Reply = handle_list(PageNo, PageSize),
@@ -277,6 +291,19 @@ handle_modify(User, Template) when is_record(Template, templates) ->
   mnesia:activity(transaction, ModifyTemplateFun);
 handle_modify(_User, _Template) ->
   {error, bad_record}.
+
+handle_check(TemplateId) ->
+  case mnesia:dirty_read(templates, TemplateId) of
+    [] ->
+      {error, no_template};
+    Template ->
+      case Template#templates.status of
+        active ->
+          ok;
+        _ ->
+          {error, template_not_active}
+      end
+  end.
 
 handle_list(PageNo, PageSize) ->
   Keys = mnesia:dirty_all_keys(templates),
