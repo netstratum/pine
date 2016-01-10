@@ -1,18 +1,15 @@
-.PHONY: all clean compile deps clean_app release start ping stop attach console console_clean build_rpm test test_console tar
+.PHONY: all clean compile clean_app release start ping stop attach console console_clean build_rpm test test_console tar
 
-rebar=rebar
+rebar='./rebar3'
 
 all: deps compile
 increment: compile release console
 compile:
 	@$(rebar) compile
-deps:
-	@mkdir -p deps
-	@$(rebar) get-deps
 clean:
-	@$(rebar) -r clean
+	@$(rebar) clean
 release:
-	@$(rebar) -q generate
+	@$(rebar) release
 start:
 	@rel/pine/bin/pine start
 ping:

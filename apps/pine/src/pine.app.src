@@ -6,10 +6,9 @@
   {applications, [
                   kernel,
                   stdlib,
+                  sasl,
                   mnesia,
                   crypto,
-                  ranch,
-                  cowlib,
                   cowboy
                  ]},
   {mod, { pine_app, []}},
