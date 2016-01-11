@@ -114,8 +114,15 @@ maps_to_orderRecord(Maps) ->
                   CryptoKey ->
                     hexbin_to_bin(CryptoKey)
                 end,
+  PinTemplateV2 = case Order#orders.pin_template of
+                    undefined ->
+                      undefined;
+                    PinTemplate ->
+                      hexbin_to_bin(PinTemplate)
+                  end,
   Order#orders{id=IdV2,
                schedule=ScheduleV2,
+               pin_template=PinTemplateV2,
                crypto_key=CryptoKeyV2}.
 
 
@@ -376,6 +383,7 @@ mk_orderTupleList(Rows) ->
   lists:map(
     fun(Row) ->
         RowU = Row#orders{id=bin_to_hexbin(Row#orders.id),
+                          pin_template=try_to_hexbin(Row#orders.pin_template),
                           crypto_key=try_to_hexbin(Row#orders.crypto_key),
                           schedule=try_to_iso8601(Row#orders.schedule,
                                                   undefined),

@@ -296,7 +296,7 @@ handle_check(TemplateId) ->
   case mnesia:dirty_read(templates, TemplateId) of
     [] ->
       {error, no_template};
-    Template ->
+    [Template] ->
       case Template#templates.status of
         active ->
           ok;
