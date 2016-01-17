@@ -37,6 +37,7 @@
          try_to_hexbin_list/1,
          now_to_iso8601/1,
          try_to_iso8601/2,
+         try_to_iso8601/1,
          update/2,
          get_keysforpage/3,
          maps_to_record/3,
@@ -315,6 +316,8 @@ to_seconds(Data) ->
   io:format("Unable to transform ~p into seconds~n", [Data]),
   0.
 
+try_to_iso8601(OtherFormat) ->
+  try_to_iso8601(OtherFormat, undefined).
 try_to_iso8601({A, B, C}, Default) ->
   case (catch now_to_iso8601({A, B, C})) of
     {'EXIT', _Reason} ->

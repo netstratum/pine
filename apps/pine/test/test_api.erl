@@ -9,7 +9,8 @@
          retire_template/4, search_template/8, create_order/5,
          modify_order/7, search_order/6, list_order/4, lock_order/4,
          unlock_order/4, retire_order/4, approve_order/4, reject_order/4,
-         activate_order/4]).
+         activate_order/4, add_printer/6, modify_printer/6, list_printer/4,
+         lock_printer/4, unlock_printer/4, retire_printer/4]).
 
 login(Url, Username, Password) ->
   RequestBody = test_tools:encode_json(
@@ -510,3 +511,99 @@ activate_order(Url, Token, Id, Comment) ->
     {error, Reason} ->
       {error, Reason}
   end.
+
+add_printer(Url, Token, Name, Notes, Location, CryptoKey) ->
+  RequestBody = test_tools:encode_json([{function, <<"order.printer.add">>},
+                                        {name, list_to_binary(Name)},
+                                        {notes, list_to_binary(Notes)},
+                                        {location,
+                                            list_to_binary(Location)},
+                                        {crypto_key,
+                                            list_to_binary(CryptoKey)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+modify_printer(Url, Token, Id, Notes, Location, CryptoKey) ->
+  RequestBody = test_tools:encode_json(
+                  removeEmptyBinary([{function, <<"order.printer.modify">>},
+                                     {id, list_to_binary(Id)},
+                                     {notes, list_to_binary(Notes)},
+                                     {location, list_to_binary(Location)},
+                                     {crypto_key, list_to_binary(CryptoKey)}])),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+list_printer(Url, Token, PageNo, PageSize) ->
+  RequestBody = test_tools:encode_json([{function,
+                                          <<"order.printer.list">>},
+                                        {page_no, list_to_binary(PageNo)},
+                                        {page_size,
+                                          list_to_binary(PageSize)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+lock_printer(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function, <<"order.printer.lock">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+unlock_printer(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function,
+                                         <<"order.printer.unlock">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+retire_printer(Url, Token, Id, Comment) ->
+  RequestBody = test_tools:encode_json([{function,
+                                          <<"order.printer.retire">>},
+                                        {id, list_to_binary(Id)},
+                                        {comment, list_to_binary(Comment)}]),
+  case ibrowse:send_req(Url, [{"x-pine-token", Token}], post, RequestBody) of
+    {ok, StatusCode, _Headers, []} ->
+      {ok, StatusCode};
+    {ok, StatusCode, _Headers, ResponseBody} ->
+      ResponseJson = test_tools:decode_json(ResponseBody),
+      {ok, StatusCode, ResponseJson};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+

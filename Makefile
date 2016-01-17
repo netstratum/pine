@@ -1,9 +1,10 @@
-.PHONY: default all clean compile release shell console
+.PHONY: default all build clean compile release shell powershell tar
 
 rebar='./rebar3'
 
 default: compile
-all: clean compile release
+all: clean compile test release
+build: test release
 compile:
 	@$(rebar) compile
 clean:
@@ -14,7 +15,7 @@ release:
 	@$(rebar) release
 shell:
 	@$(rebar) shell
-console:
+powershell:
 	@$(rebar) run
 tar:
 	@${rebar} as prod tar

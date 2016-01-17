@@ -2,7 +2,8 @@
 -export([encode_json/1, decode_json/1, timestamp_diff_seconds/2,
          ts_to_str/1, floor/1, ceiling/1, split_string/2,
          int_len/1, int_to_list_pad/3, uuid/0, md5/1, uptime/0,
-         hexstr_to_bin/1, bin_to_hexstr/1, hexstr_to_list/1, list_to_hexstr/1]).
+         hexstr_to_bin/1, bin_to_hexstr/1, hexstr_to_list/1, list_to_hexstr/1,
+         get_member/2]).
 
 encode_json(ErlangTerm) when is_tuple(ErlangTerm) ->
   jiffy:encode({[ErlangTerm]});
@@ -101,3 +102,19 @@ uptime() ->
   lists:flatten(
     io_lib:format("~p days, ~p hours, ~p minutes and ~p seconds",
                   [D,H,M,S])).
+
+get_member([], Value) ->
+  {ok, binary_to_list(Value)};
+get_member(_KeyTree, []) ->
+  {error, not_found};
+get_member(KeyTree, {Object}) ->
+  get_member(KeyTree, Object);
+get_member(KeyTree, [{Object}|_]) ->
+  get_member(KeyTree, Object);
+get_member([Key|KeyTree], Object) ->
+  case lists:keyfind(list_to_binary(Key), 1, Object) of
+    false ->
+      {error, not_found};
+    {_, Value} ->
+      get_member(KeyTree, Value)
+  end.

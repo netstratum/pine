@@ -55,7 +55,7 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 add(User, Name, Notes, Location, CryptoKey) ->
-  gen_server:call({add, User, Name, Notes, Location, CryptoKey}).
+  gen_server:call(?MODULE, {add, User, Name, Notes, Location, CryptoKey}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -66,7 +66,7 @@ add(User, Name, Notes, Location, CryptoKey) ->
 %% @end
 %%--------------------------------------------------------------------
 modify(User, Id, Notes, Location, CryptoKey) ->
-  gen_server:call({modify, User, Id, Notes, Location, CryptoKey}).
+  gen_server:call(?MODULE, {modify, User, Id, Notes, Location, CryptoKey}).
 
 %%--------------------------------------------------------------------
 %% @doc

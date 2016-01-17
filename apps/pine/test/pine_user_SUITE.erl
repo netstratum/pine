@@ -35,28 +35,21 @@ all() ->
 init_per_suite(Config) ->
   {ok, _Started} = application:ensure_all_started(pine),
   application:start(ibrowse),
-  Config.
-
-end_per_suite(Config) ->
-  application:stop(pine),
-  application:stop(ibrowse),
-  Config.
-
-init_per_testcase(TestCase, Config) when TestCase == list_roles;
-                                         TestCase == add_user ->
   {ok, Token} = test_api:login(?URL, "root", "pa55wdr00t"),
-  [{token, Token}|Config];
-init_per_testcase(change_password, Config) ->
-  {ok, Token} = test_api:login(?URL, "danny", "password"),
-  [{token, Token}|Config];
-init_per_testcase(_TestCase, Config) ->
-  {ok, Token} = test_api:login(?URL, "danny", "pa55wd2016"),
   [{token, Token}|Config].
 
-end_per_testcase(_What, Config) ->
+end_per_suite(Config) ->
   Token = ?config(token, Config),
   ok = test_api:logout(?URL, Token, "root"),
-  proplists:delete(token, Config).
+  application:stop(pine),
+  application:stop(ibrowse),
+  ok.
+
+init_per_testcase(_TestCase, Config) ->
+  Config.
+
+end_per_testcase(_TestCase, _Config) ->
+  ok.
 
 %% Test Cases Exported Functions
 
@@ -66,8 +59,7 @@ list_roles(Config) ->
                                                 Token,
                                                 "-1",
                                                 "-1"),
-  ct:comment("StatusCode is ~p and Roles are ~p~n",
-             [StatusCode, Roles]),
+  ct:comment(StatusCode),
   {ok, RoleId} = extract_roleId(Roles),
   {save_config, [{roleid, RoleId}]}.
 
@@ -82,7 +74,7 @@ add_user(Config) ->
                                        "password",
                                        RoleId
                                        ),
-  ct:comment("StatusCode is ~p~n", [StatusCode]),
+  ct:comment(StatusCode),
   ok.
 
 change_password(Config) ->
@@ -92,7 +84,7 @@ change_password(Config) ->
                                               "danny",
                                               "password",
                                               "pa55wd2016"),
-  ct:comment("StatusCode is ~p~n", [StatusCode]),
+  ct:comment(StatusCode),
   ok.
 
 %% Internal Functions
