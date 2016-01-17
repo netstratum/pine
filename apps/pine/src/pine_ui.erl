@@ -1,4 +1,6 @@
 -module(pine_ui).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -export([init/3, handle/2, terminate/3]).
 
 init(Type, Req, Opts) ->

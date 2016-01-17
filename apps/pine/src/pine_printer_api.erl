@@ -1,37 +1,33 @@
--module(pine_template_api).
+-module(pine_printer_api).
 -author("Chaitanya Chalasani <cchalasani@me.com>").
 
 -behaviour(gen_server).
 
+%% Include mnesia tables
 -include("pine_mnesia.hrl").
 
--import(pine_template, [create/2,
-                        modify/2,
-                        list/2,
-                        search/6,
-                        clone/4,
-                        lock/3,
-                        unlock/3,
-                        retire/3]).
+%% Import Functions
+-import(pine_printer, [add/5,
+                       modify/5,
+                       list/2,
+                       lock/3,
+                       unlock/3,
+                       retire/3]).
 -import(pine_user, [validate/2]).
--import(pine_tools, [maps_to_record/3,
+-import(pine_tools, [hexbin_to_bin/1,
+                     try_find_map/2,
                      try_to_int/1,
-                     hexbin_to_bin/1,
-                     record_to_tuplelist/2,
-                     iso8601_to_ts/1,
                      bin_to_hexbin/1,
-                     try_to_hexbin/1,
                      now_to_iso8601/1,
-                     try_to_iso8601/2,
-                     try_find_map/2]).
+                     try_to_iso8601/1,
+                     try_to_hexbin/1,
+                     record_to_tuplelist/2]).
 
 %% API functions
 -export([start_link/0,
-         create_api/1,
+         add_api/1,
          modify_api/1,
          list_api/1,
-         search_api/1,
-         clone_api/1,
          lock_api/1,
          unlock_api/1,
          retire_api/1]).
@@ -62,66 +58,52 @@ start_link() ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Create a new template api
+%% Add a printer
 %%
-%% @spec create_api(TemplateMap) -> ok | {error, Error}
+%% @spec add_api() -> ok | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-create_api(#{http_token:=Cookie,
-             http_source:=Source} = Maps) ->
-  Template = maps_to_record(templates,
-                            Maps,
-                            record_info(fields, templates)),
-  Expiry = binary_to_list(Template#templates.expiry),
-  ExpiryErlNow = case (catch iso8601_to_ts(Expiry)) of
-                   {'EXIT', _Reason} ->
-                     {error, invalid_expiry};
-                   ErlNow ->
-                     ErlNow
-                 end,
-  TemplateV2 = Template#templates{expiry=ExpiryErlNow},
+add_api(#{http_token:=Cookie,
+          http_source:=Source,
+          name:=Name,
+          location:=Location,
+          crypto_key:=CryptoKey} = Maps) ->
+  Notes = try_find_map(notes, Maps),
   case validate(Cookie, Source) of
     {ok, User} ->
-      create(User, TemplateV2);
+      add(User, Name, Notes, Location, CryptoKey);
     Error ->
       Error
   end.
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Modify an existing template
+%% Modify a printer
 %%
-%% @spec modify_api(TemplateMap) -> ok | {error, Error}
+%% @spec modify_api() -> ok | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 modify_api(#{http_token:=Cookie,
-             http_source:=Source} = Maps) ->
-  Template = maps_to_record(templates,
-                            Maps,
-                            record_info(fields, templates)),
-  Id = Template#templates.id,
+             http_source:=Source,
+             id:=Id} = Maps) ->
+  Notes = try_find_map(notes, Maps),
+  Location = try_find_map(location, Maps),
+  CryptoKey = try_find_map(crypto_key, Maps),
   IdBin = hexbin_to_bin(Id),
-  Expiry = binary_to_list(Template#templates.expiry),
-  ExpiryErlNow = case (catch iso8601_to_ts(Expiry)) of
-                   {'EXIT', _Reason} ->
-                     undefined;
-                   ErlNow ->
-                     ErlNow
-                 end,
-  TemplateV2 = Template#templates{id=IdBin,
-                                  expiry=ExpiryErlNow},
   case validate(Cookie, Source) of
     {ok, User} ->
-      modify(User, TemplateV2);
+      modify(User, IdBin, Notes, Location, CryptoKey);
     Error ->
       Error
   end.
 
 %%--------------------------------------------------------------------
 %% @doc
-%% List all templates api
+%% List all printers
 %%
-%% @spec list_api(ListMap) -> {ok, Templates} | {error, Error}
+%% @spec list_api() -> {ok, [{printers, Printers},
+%%                           {total_pages, TotalPages}]
+%%                   | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 list_api(#{http_token:=Cookie,
@@ -129,13 +111,13 @@ list_api(#{http_token:=Cookie,
            page_no:=PageNo,
            page_size:=PageSize}) ->
   PageNoInt = try_to_int(PageNo),
-  PageSizeInt = try_to_int(PageSize),
+  PageNoSize = try_to_int(PageSize),
   case validate(Cookie, Source) of
     {ok, _User} ->
-      case list(PageNoInt, PageSizeInt) of
+      case list(PageNoInt, PageNoSize) of
         {ok, Rows, TotalPages} ->
-          TemplateTupleList = mk_templateTupleList(Rows),
-          {ok, [{templates, TemplateTupleList},
+          PrintersTupleList = mk_printersTupleList(Rows),
+          {ok, [{printers, PrintersTupleList},
                 {total_pages, TotalPages}]};
         Other ->
           Other
@@ -146,60 +128,9 @@ list_api(#{http_token:=Cookie,
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Search all templates api
+%% Lock a printer
 %%
-%% @spec search_api(ListMap) -> {ok, Templates} | {error, Error}
-%% @end
-%%--------------------------------------------------------------------
-search_api(#{http_token:=Cookie,
-           http_source:=Source,
-           page_no:=PageNo,
-           page_size:=PageSize} = Maps) ->
-  Name = try_find_map(name, Maps),
-  Notes = try_find_map(notes, Maps),
-  StartTS = try_find_map(start_ts, Maps),
-  EndTS = try_find_map(end_ts, Maps),
-  PageNoInt = try_to_int(PageNo),
-  PageSizeInt = try_to_int(PageSize),
-  case validate(Cookie, Source) of
-    {ok, _User} ->
-      case search(Name, Notes, StartTS, EndTS, PageNoInt, PageSizeInt) of
-        {ok, Rows, TotalPages} ->
-          TemplateTupleList = mk_templateTupleList(Rows),
-          {ok, [{templates, TemplateTupleList},
-                {total_pages, TotalPages}]};
-        Other ->
-          Other
-      end;
-    Error ->
-      Error
-  end.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Clone a template
-%%
-%% @spec clone_api(ListMap) -> ok | {error, Error}
-%% @end
-%%--------------------------------------------------------------------
-clone_api(#{id:=Id,
-           name:=Name,
-           http_token:=Cookie,
-           http_source:=Source} = Maps) ->
-  Notes = try_find_map(notes, Maps),
-  IdBin = hexbin_to_bin(Id),
-  case validate(Cookie, Source) of
-    {ok, User} ->
-      clone(User, IdBin, Name, Notes);
-    Error ->
-      Error
-  end.
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Lock a template
-%%
-%% @spec lock_api(ListMap) -> ok | {error, Error}
+%% @spec lock_api(Maps) -> ok | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 lock_api(#{id:=Id,
@@ -216,9 +147,9 @@ lock_api(#{id:=Id,
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Unlock a template
+%% Unlock a printer
 %%
-%% @spec unlock_api(ListMap) -> ok | {error, Error}
+%% @spec unlock_api(Maps) -> ok | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 unlock_api(#{id:=Id,
@@ -235,9 +166,9 @@ unlock_api(#{id:=Id,
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Retire a template
+%% Retire a printer
 %%
-%% @spec retire_api(ListMap) -> ok | {error, Error}
+%% @spec retire_api(Maps) -> ok | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 retire_api(#{id:=Id,
@@ -270,37 +201,27 @@ retire_api(#{id:=Id,
 init([]) ->
   Now = os:timestamp(),
   InitApiFun = fun() ->
-    mnesia:write(#api_handlers{function = <<"order.template.create">>,
-                               arguments = [name, label_pattern, seq_pattern,
-                                            actual_value, expiry, pin_type,
-                                            pin_pattern],
-                               handler = {?MODULE, create_api},
+    mnesia:write(#api_handlers{function = <<"order.printer.add">>,
+                               arguments = [name, location, crypto_key],
+                               handler = {?MODULE, add_api},
                                created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.modify">>,
+    mnesia:write(#api_handlers{function = <<"order.printer.modify">>,
                                arguments = [id],
-                               handler = {?MODULE, modify_api},
+                               handler= {?MODULE, modify_api},
                                created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.list">>,
+    mnesia:write(#api_handlers{function = <<"order.printer.list">>,
                                arguments = [page_no, page_size],
                                handler = {?MODULE, list_api},
                                created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.search">>,
-                               arguments = [page_no, page_size],
-                               handler = {?MODULE, search_api},
-                               created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.clone">>,
-                               arguments = [id, name],
-                               handler = {?MODULE, clone_api},
-                               created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.lock">>,
+    mnesia:write(#api_handlers{function = <<"order.printer.lock">>,
                                arguments = [id, comment],
                                handler = {?MODULE, lock_api},
                                created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.unlock">>,
+    mnesia:write(#api_handlers{function = <<"order.printer.unlock">>,
                                arguments = [id, comment],
                                handler = {?MODULE, unlock_api},
                                created_on = Now}),
-    mnesia:write(#api_handlers{function = <<"order.template.retire">>,
+    mnesia:write(#api_handlers{function = <<"order.printer.retire">>,
                                arguments = [id, comment],
                                handler = {?MODULE, retire_api},
                                created_on = Now})
@@ -381,29 +302,26 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-mk_templateTupleList(Rows) ->
-  lists:map(fun(Row) ->
-              RowU = Row#templates{id=bin_to_hexbin(Row#templates.id),
-                                   expiry=now_to_iso8601(
-                                    Row#templates.expiry
-                                   ),
-                                   created_on=try_to_iso8601(
-                                    Row#templates.created_on,
-                                    undefined
-                                   ),
-                                   created_by=try_to_hexbin(
-                                    Row#templates.created_by
-                                   ),
-                                   modified_on=try_to_iso8601(
-                                    Row#templates.modified_on,
-                                    undefined
-                                   ),
-                                   modified_by=try_to_hexbin(
-                                    Row#templates.modified_by
-                                   )
-                                  },
-              {record_to_tuplelist(RowU, record_info(fields, templates))}
-            end,
-            Rows
-          ).
-
+mk_printersTupleList(Rows) ->
+  lists:map(
+    fun(Row) ->
+        RowV2 = Row#printers{id = bin_to_hexbin(Row#printers.id),
+                             crypto_key = bin_to_hexbin(
+                                            Row#printers.crypto_key
+                                           ),
+                             created_on = now_to_iso8601(
+                                            Row#printers.created_on
+                                           ),
+                             created_by = bin_to_hexbin(
+                                            Row#printers.created_by
+                                           ),
+                             modified_on = try_to_iso8601(
+                                             Row#printers.modified_on
+                                            ),
+                             modified_by = try_to_hexbin(
+                                             Row#printers.modified_by
+                                            )},
+        {record_to_tuplelist(RowV2, record_info(fields, printers))}
+    end,
+    Rows
+   ).

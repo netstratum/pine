@@ -1,4 +1,5 @@
 -module(pine_order).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
 
 -behaviour(gen_server).
 
@@ -419,7 +420,7 @@ handle_list(PageNo, PageSize) ->
 handle_lock(User, Id, Comment) ->
   Now = os:timestamp(),
   LockOrderFun = fun() ->
-    case mnesia:dirty_read(orders, Id) of
+    case mnesia:read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -439,7 +440,7 @@ handle_lock(User, Id, Comment) ->
 handle_unlock(User, Id, Comment) ->
   Now = os:timestamp(),
   UnlockOrderFun = fun() ->
-    case mnesia:dirty_read(orders, Id) of
+    case mnesia:read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->
@@ -459,7 +460,7 @@ handle_unlock(User, Id, Comment) ->
 handle_retire(User, Id, Comment) ->
   Now = os:timestamp(),
   RetireOrderFun = fun() ->
-    case mnesia:dirty_read(orders, Id) of
+    case mnesia:read(orders, Id) of
       [] ->
         {error, no_order};
       [OrderRecord] ->

@@ -2,6 +2,7 @@
 %%% PIN Engine : Utility Tools (pure funtions)
 %%%=======================================================================%%%
 -module(pine_tools).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
 
 %% API functions
 -export([encode_json/1,

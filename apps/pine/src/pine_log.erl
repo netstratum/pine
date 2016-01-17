@@ -1,4 +1,6 @@
 -module(pine_log).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -behaviour(gen_event).
 
 -import(pine_mnesia, [read_conf/2]).

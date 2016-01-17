@@ -1,4 +1,6 @@
 -module(pine_sock).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -behaviour(cowboy_websocket_handler).
 
 -export([init/3, websocket_init/3, websocket_handle/3, websocket_info/3,

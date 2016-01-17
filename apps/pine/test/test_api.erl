@@ -1,4 +1,5 @@
 -module(test_api).
+
 -export([login/3, logout/3, open_pin/4,
          close_pin/4, burn_pin/4, change_password/5,
          add_user/6, modify_user/8, list_users/4, search_users/8,

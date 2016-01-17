@@ -1,4 +1,5 @@
 -module(pine_sup).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
 
 -behaviour(supervisor).
 
@@ -35,6 +36,8 @@ init([]) ->
                                 ?CHILD(pine_pins_api, worker),
                                 ?CHILD(pine_template, worker),
                                 ?CHILD(pine_template_api, worker),
+                                ?CHILD(pine_printer, worker),
+                                ?CHILD(pine_printer_api, worker),
                                 ?CHILD(pine_order, worker),
                                 ?CHILD(pine_order_api, worker),
                                 ?CHILD(pine_web, worker)]} }.

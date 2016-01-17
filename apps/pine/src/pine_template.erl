@@ -1,4 +1,5 @@
 -module(pine_template).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
 
 -behaviour(gen_server).
 
@@ -16,6 +17,7 @@
          check/1,
          list/2,
          search/6,
+         clone/4,
          lock/3,
          unlock/3,
          retire/3]).
@@ -98,6 +100,16 @@ search(Name, Notes, StartTS, EndTS, PageNo, PageSize) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Clone a template
+%%
+%% @spec clone(User, TemplateId, Name, Notes) -> ok | {error, Error}
+%% @end
+%%--------------------------------------------------------------------
+clone(User, TemplateId, Name, Notes) ->
+  gen_server:call(?MODULE, {clone, User, TemplateId, Name, Notes}).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Lock a template
 %%
 %% @spec lock(User, TemplateId, Comment) -> ok | {error, Error}
@@ -174,6 +186,9 @@ handle_call({list, PageNo, PageSize}, _From, State) ->
 handle_call({search, Name, Notes, StartTS, EndTS, PageNo, PageSize},
             _From, State) ->
   Reply = handle_search(Name, Notes, StartTS, EndTS, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({clone, User, Id, Name, Notes}, _From, State) ->
+  Reply = handle_clone(User, Id, Name, Notes),
   {reply, Reply, State};
 handle_call({lock, User, Id, Comment}, _From, State) ->
   Reply = handle_lock(User, Id, Comment),
@@ -388,6 +403,34 @@ filter_templates_bool(TemplateRecord, [{created, {StartTS, EndTS}}|Filters]) ->
   end;
 filter_templates_bool(_TemplateRecord, []) ->
   false.
+
+handle_clone(User, Id, Name, Notes) ->
+  CloneId = uuid(),
+  Now = os:timestamp(),
+  CloneTemplateFun = fun() ->
+    case mnesia:read(templates, Id) of
+      [] ->
+        {error, no_template};
+      [OriginalTemplate] ->
+        case mnesia:index_read(templates, Name, #templates.name) of
+          [] ->
+            ClonedTemplate = OriginalTemplate#templates{
+                               id=CloneId,
+                               name=Name,
+                               notes=Notes,
+                               status=active,
+                               created_on=Now,
+                               created_by=User,
+                               modified_on=undefined,
+                               modified_by=undefined
+                              },
+            mnesia:write(ClonedTemplate);
+          _ ->
+            {error, name_already_used}
+        end
+    end
+  end,
+  mnesia:activity(transaction, CloneTemplateFun).
 
 handle_lock(User, Id, Comment) ->
   Now = os:timestamp(),

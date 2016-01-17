@@ -1,4 +1,5 @@
 -module(pine_app).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
 
 -behaviour(application).
 

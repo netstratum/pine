@@ -1,4 +1,6 @@
 -module(pine_pins_api).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -behaviour(gen_server).
 
 -include("pine_mnesia.hrl").

@@ -1,4 +1,5 @@
 -module(pine_api).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
 
 -import(pine_tools, [encode_params/1, decode_params/1, hexstr_to_bin/1,
                      get_missing/2, to/2]).
@@ -14,7 +15,7 @@ handle(Req, State) ->
   {Method, Req2} = cowboy_req:method(Req),
   HasBody = cowboy_req:has_body(Req2),
   {ok, Req3} = handle_post(Method, HasBody, Req2),
-  io:format("Req3 here is ~p~n", [Req3]),
+  error_logger:info_msg("Req3 here is ~p~n", [Req3]),
   {ok, Req3, State}.
 
 terminate(_Reason, _Req, _State) ->
@@ -71,7 +72,6 @@ handle_command(FunctionName, ParamsList) ->
 
 handle_command_specs(ApiHandlerRec, ParamsList) ->
   ParamsRequired = ApiHandlerRec#api_handlers.arguments,
-  io:format("here ~p and ~p ~n", [ParamsList, ParamsRequired]),
   case get_missing(ParamsList, ParamsRequired) of
     [] ->
       {Module, Function} = ApiHandlerRec#api_handlers.handler,

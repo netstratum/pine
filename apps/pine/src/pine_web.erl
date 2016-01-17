@@ -1,4 +1,6 @@
 -module(pine_web).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -behaviour(gen_server).
 
 -import(pine_mnesia, [read_conf/1, read_conf/2]).
@@ -50,3 +52,4 @@ code_change(_OldVsn, State, _Extra) ->
 
 terminate(_Reason, _State) ->
   ok.
+

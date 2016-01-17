@@ -1,4 +1,6 @@
 -module(pine_user_api).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -behaviour(gen_server).
 
 -include("pine_mnesia.hrl").
@@ -47,7 +49,6 @@ chpassword_api(#{username:=Username,
                       true -> hexbin_to_bin(OldPassword)
                    end,
   NewPasswordBin = hexbin_to_bin(NewPassword),
-  io:format("chpassword_api triggered~n"),
   chpassword(Cookie, Source, Username, OldPasswordBin, NewPasswordBin).
 
 adduser_api(#{name:=Name,

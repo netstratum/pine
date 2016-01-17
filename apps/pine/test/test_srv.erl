@@ -380,7 +380,8 @@ handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
 handle_cast(stop, State) ->
-  test_api:logout(State#state.url, State#state.token, State#state.username),
+  Response = test_api:logout(State#state.url, State#state.token, State#state.username),
+  io:format("Response is ~p~n", [Response]),
   {stop, normal, State};
 handle_cast(_Request, State) ->
   {noreply, State}.

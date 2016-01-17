@@ -2,6 +2,8 @@
 %%% PIN Engine : User Management Module
 %%%=======================================================================%%%
 -module(pine_user).
+-author("Chaitanya Chalasani <cchalasani@me.com>").
+
 -behaviour(gen_server).
 
 %% Mnesia table definitions
@@ -334,12 +336,18 @@ handle_logout(Username, Cookie, Source) ->
       [] ->
         {error, not_found};
       [SessionRecord] ->
-        if
-          SessionRecord#sessions.user == Username andalso
-              SessionRecord#sessions.source == Source->
-            mnesia:delete(sessions, Cookie);
-          true ->
-            {error, not_authorized}
+        case mnesia:index_read(users, Username, #users.name) of
+          [] ->
+            {error, not_found};
+          [UserRecord] ->
+            UserId = UserRecord#users.id,
+            if
+              SessionRecord#sessions.user == UserId andalso
+                  SessionRecord#sessions.source == Source->
+                mnesia:delete({sessions, Cookie});
+              true ->
+                {error, not_authorized}
+            end
         end
     end
   end,

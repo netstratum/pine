@@ -8,11 +8,13 @@ compile:
 	@$(rebar) compile
 clean:
 	@$(rebar) clean
+test:
+	@$(rebar) ct
 release:
 	@$(rebar) release
 shell:
 	@$(rebar) shell
 console:
-	@_build/default/rel/pine/bin/pine console
+	@$(rebar) run
 tar:
 	@${rebar} as prod tar
