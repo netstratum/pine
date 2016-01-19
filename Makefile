@@ -9,6 +9,8 @@ compile:
 	@$(rebar) compile
 clean:
 	@$(rebar) clean
+cleanall:
+	@${rebar} clean -a
 test:
 	@$(rebar) ct
 release:
