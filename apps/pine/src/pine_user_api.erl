@@ -252,7 +252,7 @@ mk_roleTupleList(RoleRecords) ->
     {[{id, try_to_hexbin(RoleRecord#roles.id)},
       {name, to(binary,RoleRecord#roles.name)},
       {notes, to(binary,RoleRecord#roles.notes)},
-      {access_tokens, try_to_hexbin_list(RoleRecord#roles.access_tokens)},
+      {access_list, try_to_hexbin_list(RoleRecord#roles.access_list)},
       {status, to(binary,RoleRecord#roles.status)},
       {status_comment, to(binary,RoleRecord#roles.status_comment)},
       {created_on, to(binary,RoleRecord#roles.created_on)},

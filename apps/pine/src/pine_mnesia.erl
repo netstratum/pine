@@ -91,6 +91,7 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 init_schema() ->
+  try_connect_schema(),
   SchemaTypeNow = mnesia:table_info(schema, storage_type),
   SchemaTypeCfg = read_conf(mnesia_schema, ram),
   case {SchemaTypeNow, SchemaTypeCfg} of
@@ -103,6 +104,26 @@ init_schema() ->
       ok
   end.
 
+try_connect_schema() ->
+  case read_conf(neighbour, undefined) of
+    Node when is_atom(Node) ->
+      Nodes = mnesia:system_info(db_nodes),
+      case lists:member(Node, Nodes) of
+        false ->
+          case net_adm:ping(Node) of
+            pong ->
+              catch rpc:call(Node, mnesia, change_config,
+                             [extra_db_nodes, [node()]]);
+            pang ->
+              ok
+          end;
+        true ->
+          ok
+      end;
+    _ ->
+      ok
+  end.
+
 init_tables() ->
   create_table_imp(reference, [{disc_copies, [node()]},
       {attributes, record_info(fields, reference)}]),
@@ -110,11 +131,30 @@ init_tables() ->
       {attributes, record_info(fields, sysconf)}]),
   create_table_imp(api_handlers, [{ram_copies, [node()]},
       {attributes, record_info(fields, api_handlers)}]),
-  mnesia:wait_for_tables([reference, sysconf, api_handlers], 2500).
+  create_table_imp(access, [{ram_copies, [node()]},
+      {attributes, record_info(fields, access)}]),
+  mnesia:wait_for_tables([reference, sysconf, api_handlers,
+                          access], 2500).
 
 create_table_imp(Table, Options) ->
   SchemaType = read_conf(mnesia_schema, ram),
-  create_table_imp_new(Table, Options, SchemaType).
+  case get_table_type(Table) of
+    no_table ->
+      create_table_imp_new(Table, Options, SchemaType);
+    unknown ->
+      copy_table_imp(Table, Options, SchemaType);
+    Other ->
+      change_table_imp(Table, Options, SchemaType, Other)
+  end.
+
+get_table_type(Table) ->
+  TablesAll = mnesia:system_info(tables),
+  case lists:member(Table, TablesAll) of
+    false ->
+      no_table;
+    true ->
+      mnesia:table_info(Table, storage_type)
+  end.
 
 create_table_imp_new(Table, Options, ram) ->
   OptionsU = [{ram_copies, [node()]}|lists:filter(
@@ -130,4 +170,36 @@ create_table_imp_new(Table, Options, ram) ->
   mnesia:create_table(Table, OptionsU);
 create_table_imp_new(Table, Options, _SchemaType) ->
   mnesia:create_table(Table, Options).
+
+copy_table_imp(Table, _Options, ram) ->
+  mnesia:add_table_copy(Table, node(), ram_copies);
+copy_table_imp(Table, Options, _Disc) ->
+  case lists:keyfind(ram_copies, 1, Options) of
+    false ->
+      case lists:keyfind(disc_copies, 1, Options) of
+        false ->
+          mnesia:add_table_copy(Table, node(), ram_copies);
+        _ ->
+          mnesia:add_table_copy(Table, node(), disc_copies)
+      end;
+    _ ->
+      mnesia:add_table_copy(Table, node(), ram_copies)
+  end.
+
+change_table_imp(_Table, _Options, ram, _StorageType) ->
+  doNothing;
+change_table_imp(Table, Options, _Disc, ram_copies) ->
+  case lists:keyfind(disc_copies, 1, Options) of
+    false ->
+      doNothing;
+    _ ->
+      mnesia:change_table_copy_type(Table, node(), ram_copies)
+  end;
+change_table_imp(Table, Options, _Disc, disc_copies) ->
+  case lists:keyfind(ram_copies, 1, Options) of
+    false ->
+      doNothing;
+    _ ->
+      mnesia:change_table_copy_type(Table, node(), disc_copies)
+  end.
 

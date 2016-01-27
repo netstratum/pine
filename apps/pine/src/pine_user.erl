@@ -17,8 +17,7 @@
 %% API functions
 -export([start_link/0, login/3, logout/3, validate/2, chpassword/5,
          adduser/8, modifyuser/8, listusers/4, searchusers/8,
-         getuserinfo/3, listroles/4, lockuser/4, unlockuser/4,
-         retireuser/4]).
+         getuserinfo/3, lockuser/4, unlockuser/4, retireuser/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2,
@@ -167,17 +166,6 @@ unlockuser(Cookie, Source, Id, Comment) ->
 retireuser(Cookie, Source, Id, Comment) ->
   gen_server:call(?MODULE, {retireuser, Cookie, Source, Id, Comment}).
 
-%%-----------------------------------------------------------------------%%
-%% @doc
-%% List Users
-%%
-%% @spec listusers(Cookie, Source, PageNo, PageSize) ->
-%%                 {ok, UsersInfoList} | {error, Reason}
-%% @end
-
-listroles(Cookie, Source, PageNo, PageSize) ->
-  gen_server:call(?MODULE, {listroles, Cookie, Source, PageNo, PageSize}).
-
 %%=======================================================================%%
 %% gen_server callbacksf
 %%=======================================================================%%
@@ -219,9 +207,6 @@ handle_call({searchusers, Cookie, Source, Name, Email, StartTS, EndTS, PageNo,
 handle_call({getuserinfo, Cookie, Source, Id}, _From, State) ->
   Reply = handle_getuserinfo(Cookie, Source, Id),
   {reply, Reply, State};
-handle_call({listroles, Cookie, Source, PageNo, PageSize}, _From, State) ->
-  Reply = handle_listroles(Cookie, Source, PageNo, PageSize),
-  {reply, Reply, State};
 handle_call({lockuser, Cookie, Source, Id, Comment}, _From, State) ->
   Reply = handle_lockuser(Cookie, Source, Id, Comment),
   {reply, Reply, State};
@@ -253,8 +238,6 @@ init_tables() ->
   lists:map(
     fun({Table, Options}) -> create_table(Table, Options) end,
     [{access,[{disc_copies, [node()]},{attributes, record_info(fields, access)}]},
-     {roles, [{disc_copies, [node()]},{attributes, record_info(fields, roles)},
-              {index, [name]}]},
      {users, [{disc_copies, [node()]},{attributes, record_info(fields, users)},
               {index, [name]}]},
      {sessions, [{attributes, record_info(fields, sessions)},
@@ -268,24 +251,12 @@ init_tables() ->
                           access_log], 2500).
 
 init_data() ->
-  RoleId = init_role(),
+  RoleId = get_role(),
   init_user(RoleId).
 
-init_role() ->
-  RoleName = read_conf(role, <<"root">>),
-  RoleUuid = uuid(),
-  Now = os:timestamp(),
-  InitRoleFun = fun() ->
-    case mnesia:index_read(roles, RoleName, #roles.name) of
-      [] ->
-        mnesia:write(#roles{id=RoleUuid, name=RoleName, status=active,
-                                  created_on=Now}),
-        RoleUuid;
-      [RootRole] ->
-        RootRole#roles.id
-    end
-  end,
-  mnesia:activity(transaction, InitRoleFun).
+get_role() ->
+  [RoleRoot] = mnesia:dirty_index_read(roles, <<"root">>, #roles.name),
+  RoleRoot#roles.id.
 
 init_user(RoleId) ->
   User = read_conf(user, <<"root">>),
@@ -596,24 +567,6 @@ handle_getuserinfo(Cookie, Source, Id) ->
         [UserRecord] ->
           {ok, UserRecord}
       end
-  end.
-
-handle_listroles(Cookie, Source, PageNo, PageSize) ->
-  case handle_validate(Cookie, Source) of
-    {error, Reason} ->
-      {error, Reason};
-    {ok, _Requester} ->
-      Keys = mnesia:dirty_all_keys(roles),
-       case get_keysforpage(Keys, to(int, PageNo), to(int,PageSize)) of
-         {error, Reason} ->
-           {error, Reason};
-         {ok, KeysSublist, TotalPages} ->
-            Rows = lists:flatten(lists:map(
-              fun(Key) -> mnesia:dirty_read(roles, Key) end,
-              KeysSublist
-             )),
-            {ok, Rows, TotalPages}
-       end
   end.
 
 handle_lockuser(Cookie, Source, Id, Comment) ->
