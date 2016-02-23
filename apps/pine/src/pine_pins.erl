@@ -5,10 +5,12 @@
 
 -include("pine_mnesia.hrl").
 
--import(pine_tools, [uuid/0, int_to_list_pad/3]).
+-import(pine_tools, [uuid/0, int_to_list_pad/3, to/2,
+                     get_keysforpage/3]).
 -import(pine_mnesia, [create_table/2]).
 
--export([generate/6, load_file/1, open_pin/2, close_pin/2, burn_pin/2]).
+-export([generate/6, load_file/1, open_pin/2, close_pin/2, burn_pin/2,
+         list_pins/4, pin_details/1, retire_pin/1]).
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          code_change/3, terminate/2]).
 
@@ -27,6 +29,15 @@ close_pin(Seq, EndUser) ->
 burn_pin(Seq, EndUser) ->
   gen_server:call(?MODULE, {burn_pin, Seq, EndUser}).
 
+list_pins(OrderId, Status, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {list_pins, OrderId, Status, PageNo, PageSize}).
+
+pin_details(Seq) ->
+  gen_server:call(?MODULE, {pin_details, Seq}).
+
+retire_pin(Seq) ->
+  gen_server:call(?MODULE, {retire_pin, Seq}).
+
 init([]) ->
   random:seed(os:timestamp()),
   init_tables(),
@@ -43,6 +54,15 @@ handle_call({close_pin, Seq, EndUser}, _From, State) ->
   {reply, Reply, State};
 handle_call({burn_pin, Seq, EndUser}, _From, State) ->
   Reply = handle_burn_pin(Seq, EndUser),
+  {reply, Reply, State};
+handle_call({list_pins, OrderId, Status, PageNo, PageSize}, _From, State) ->
+  Reply = handle_list_pins(OrderId, Status, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({pin_details, Seq}, _From, State) ->
+  Reply = handle_pin_details(Seq),
+  {reply, Reply, State};
+handle_call({retire_pin, Seq}, _From, State) ->
+  Reply = handle_retire_pin(Seq),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -63,9 +83,9 @@ init_tables() ->
   lists:map(
     fun({Table, Options}) -> create_table(Table, Options) end,
     [{pins, [{disc_copies, [node()]},{attributes, record_info(fields, pins)},
-             {index, [seq, pin]}]},
+             {index, [seq, pin, order]}]},
      {usedpins, [{disc_copies, [node()]},{attributes, record_info(fields, usedpins)},
-                 {index, [seq, pin]}]}]
+                 {index, [seq, pin, order]}]}]
     ),
   mnesia:wait_for_tables([pins, usedpins], 2500).
 
@@ -253,3 +273,42 @@ handle_burn_pin(Seq, EndUser) ->
     end
   end,
   mnesia:activity(transaction, BurnPinFun).
+
+handle_list_pins(OrderId, Status, PageNo, PageSize) ->
+  Pins = mnesia:dirty_index_read(pins, OrderId, #pins.order),
+  PinsFiltered = handle_list_pins_status(Pins, Status),
+  case get_keysforpage(PinsFiltered, to(int, PageNo), to(int, PageSize)) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, PinsSubSet, TotalPages} ->
+      {ok, PinsSubSet, TotalPages}
+  end.
+
+handle_list_pins_status(Pins, Status) ->
+  lists:filter(
+    fun(Pin) ->
+      Pin#pins.status == Status
+    end,
+    Pins
+  ).
+
+handle_pin_details(Seq) ->
+  case mnesia:dirty_index_read(pins, Seq, #pins.seq) of
+    [] ->
+      {error, not_found};
+    [PinRecord] ->
+      {ok, PinRecord}
+  end.
+
+handle_retire_pin(Seq) ->
+  case mnesia:dirty_index_read(pins, Seq, #pins.seq) of
+    [] ->
+      {error, not_found};
+    [PinRecord] ->
+      case PinRecord#pins.status of
+        retire ->
+          {error, not_found};
+        _ ->
+          mnesia:dirty_write(PinRecord#pins{status=retire})
+      end
+  end.

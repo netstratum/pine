@@ -45,7 +45,8 @@
          readall/1,
          iso8601_to_ts/1,
          has/2,
-         has_ic/2]).
+         has_ic/2,
+         try_to_ipbin/1]).
 
 %%=======================================================================%%
 %% API functions
@@ -318,6 +319,7 @@ to_seconds(Data) ->
 
 try_to_iso8601(OtherFormat) ->
   try_to_iso8601(OtherFormat, undefined).
+
 try_to_iso8601({A, B, C}, Default) ->
   case (catch now_to_iso8601({A, B, C})) of
     {'EXIT', _Reason} ->
@@ -468,3 +470,11 @@ has(String, SubString) ->
     _ ->
       true
   end.
+
+try_to_ipbin({A, B, C, D}) ->
+  list_to_binary(integer_to_list(A)++"."++
+                 integer_to_list(B)++"."++
+                 integer_to_list(C)++"."++
+                 integer_to_list(D));
+try_to_ipbin(IpAddress) when is_list(IpAddress) ->
+  list_to_binary(IpAddress).

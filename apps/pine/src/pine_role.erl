@@ -235,7 +235,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 init_tables() ->
   create_table(roles, [{disc_copies, [node()]},
-                       {attributes, record_info(fields, roles)}]),
+                       {attributes, record_info(fields, roles)},
+                       {index, [name]}]),
   mnesia:wait_for_tables([roles], 2500).
 
 init_data() ->

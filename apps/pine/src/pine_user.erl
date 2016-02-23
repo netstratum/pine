@@ -16,8 +16,10 @@
 
 %% API functions
 -export([start_link/0, login/3, logout/3, validate/2, chpassword/5,
-         adduser/8, modifyuser/8, listusers/4, searchusers/8,
-         getuserinfo/3, lockuser/4, unlockuser/4, retireuser/4]).
+         adduser/8, modifyuser/8, listusers/4, searchusers/9,
+         getuserinfo/3, lockuser/4, unlockuser/4, retireuser/4,
+         listsessions/4, deletesession/3, getsessionlog/5,
+         getaccesslog/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2,
@@ -33,7 +35,6 @@
 %%
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Reason}
 %% @end
-
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -43,7 +44,6 @@ start_link() ->
 %%
 %% @spec login(Username, Password, Source) -> {ok, Token} | {error, Reason}
 %% @end
-
 login(Username, Password, Source) ->
   gen_server:call(?MODULE, {login, Username, Password, Source}).
 
@@ -53,7 +53,6 @@ login(Username, Password, Source) ->
 %%
 %% @spec logout(Username, Cookie, Source) -> ok | {error, Reason}
 %% @end
-
 logout(Username, Cookie, Source) ->
   gen_server:call(?MODULE, {logout, Username, Cookie, Source}).
 
@@ -63,7 +62,6 @@ logout(Username, Cookie, Source) ->
 %%
 %% @spec validate(Cookie, Source) -> ok | {error, Reason}
 %% @end
-
 validate(Cookie, Source) ->
   gen_server:call(?MODULE, {validate, Cookie, Source}).
 
@@ -74,7 +72,6 @@ validate(Cookie, Source) ->
 %% @spec chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
 %%                  ok | {error, Reason}
 %% @end
-
 chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
   gen_server:call(?MODULE, {chpassword, Cookie, Source,
                             Username, OldPassword, NewPassword}).
@@ -85,7 +82,6 @@ chpassword(Cookie, Source, Username, OldPassword, NewPassword) ->
 %% @spec adduser(Cookie, Source, Name, Notes, EmailAddress, Password,
 %%               RoleId, Expiry) -> ok | {error, Reason}
 %% @end
-
 adduser(Cookie, Source, Name, Notes, EmailAddress,
         Password, RoleId, Expiry) ->
   gen_server:call(?MODULE, {adduser, Cookie, Source, Name, Notes,
@@ -98,7 +94,6 @@ adduser(Cookie, Source, Name, Notes, EmailAddress,
 %% @spec modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId)
 %%              -> ok | {error, Reason}
 %% @end
-
 modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId) ->
   gen_server:call(?MODULE, {modifyuser, Cookie, Source, Id, Name,
                             Notes, Email, Expiry, RoleId}).
@@ -109,7 +104,6 @@ modifyuser(Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId) ->
 %% @spec listusers(Cookie, Source, PageNo, PageSize) ->
 %%                 {ok, UsersInfoList} | {error, Reason}
 %% @end
-
 listusers(Cookie, Source, PageNo, PageSize) ->
   gen_server:call(?MODULE, {listusers, Cookie, Source, PageNo, PageSize}).
 
@@ -117,12 +111,11 @@ listusers(Cookie, Source, PageNo, PageSize) ->
 %% @doc
 %% Search Users
 %%
-%% @spec searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo,
+%% @spec searchusers(Cookie, Source, Name, Email, Status, StartTS, EndTS, PageNo,
 %%                   PageSize) -> {ok, UserIdList} | {error, Reason}
 %% @end
-
-searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo, PageSize) ->
-  gen_server:call(?MODULE, {searchusers, Cookie, Source, Name, Email,
+searchusers(Cookie, Source, Name, Email, Status, StartTS, EndTS, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {searchusers, Cookie, Source, Name, Email, Status,
                             StartTS, EndTS, PageNo, PageSize}).
 
 %%-----------------------------------------------------------------------%%
@@ -131,7 +124,6 @@ searchusers(Cookie, Source, Name, Email, StartTS, EndTS, PageNo, PageSize) ->
 %%
 %% @spec getuserinfo(Cookie, Source, Id) -> {ok, UserInfo} | {error, Reason}
 %% @end
-
 getuserinfo(Cookie, Source, Id) ->
   gen_server:call(?MODULE, {getuserinfo, Cookie, Source, Id}).
 
@@ -141,7 +133,6 @@ getuserinfo(Cookie, Source, Id) ->
 %%
 %% @spec lockuser(Cookie, Source, Id, Comment) -> ok | {error, Reason}
 %% @end
-
 lockuser(Cookie, Source, Id, Comment) ->
   gen_server:call(?MODULE, {lockuser, Cookie, Source, Id, Comment}).
 
@@ -151,7 +142,6 @@ lockuser(Cookie, Source, Id, Comment) ->
 %%
 %% @spec unlockuser(Cookie, Source, Id, Comment) -> ok | {error, Reason}
 %% @end
-
 unlockuser(Cookie, Source, Id, Comment) ->
   gen_server:call(?MODULE, {unlockuser, Cookie, Source, Id, Comment}).
 
@@ -162,9 +152,47 @@ unlockuser(Cookie, Source, Id, Comment) ->
 %% @spec retireuser(Cookie, Source, Id, Comment) ->
 %%                 ok | {error, Reason}
 %% @end
-
 retireuser(Cookie, Source, Id, Comment) ->
   gen_server:call(?MODULE, {retireuser, Cookie, Source, Id, Comment}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% List User Sessions
+%%
+%% @spec listsessions(Cookie, Source, PageNo, PageSize) ->
+%%                 {ok, UsersSessionList} | {error, Reason}
+%% @end
+listsessions(Cookie, Source, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {listsessions, Cookie, Source, PageNo, PageSize}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Delete a user session
+%%
+%% @spec deletesession(Cookie, Source, Id) -> ok | {error, Reason}
+%% @end
+deletesession(Cookie, Source, Id) ->
+  gen_server:call(?MODULE, {deletesession, Cookie, Source, Id}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Get a user's session log
+%%
+%% @spec getsessionlog(Cookie, Source, Id, PageNo, PageSize) ->
+%%                 {ok, UserSessionLog} | {error, Reason}
+%% @end
+getsessionlog(Cookie, Source, Id, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {getsessionlog, Cookie, Source, Id, PageNo, PageSize}).
+
+%%-----------------------------------------------------------------------%%
+%% @doc
+%% Get a user's access log
+%%
+%% @spec getaccesslog(Cookie, Source, Id, PageNo, PageSize) ->
+%%                 {ok, UserAccessLog} | {error, Reason}
+%% @end
+getaccesslog(Cookie, Source, Id, PageNo, PageSize) ->
+  gen_server:call(?MODULE, {getaccesslog, Cookie, Source, Id, PageNo, PageSize}).
 
 %%=======================================================================%%
 %% gen_server callbacksf
@@ -199,9 +227,9 @@ handle_call({modifyuser, Cookie, Source, Id, Name, Notes, Email, Expiry, RoleId}
 handle_call({listusers, Cookie, Source, PageNo, PageSize}, _From , State) ->
   Reply = handle_listusers(Cookie, Source, PageNo, PageSize),
   {reply, Reply, State};
-handle_call({searchusers, Cookie, Source, Name, Email, StartTS, EndTS, PageNo,
+handle_call({searchusers, Cookie, Source, Name, Email, Status, StartTS, EndTS, PageNo,
              PageSize}, _From, State) ->
-  Reply = handle_searchuser(Cookie, Source, Name, Email, StartTS, EndTS, PageNo,
+  Reply = handle_searchuser(Cookie, Source, Name, Email, Status, StartTS, EndTS, PageNo,
                            PageSize),
   {reply, Reply, State};
 handle_call({getuserinfo, Cookie, Source, Id}, _From, State) ->
@@ -215,6 +243,18 @@ handle_call({unlockuser, Cookie, Source, Id, Comment}, _From, State) ->
   {reply, Reply, State};
 handle_call({retireuser, Cookie, Source, Id, Comment}, _From, State) ->
   Reply = handle_retireuser(Cookie, Source, Id, Comment),
+  {reply, Reply, State};
+handle_call({listsessions, Cookie, Source, PageNo, PageSize}, _From , State) ->
+  Reply = handle_listsessions(Cookie, Source, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({deletesession, Cookie, Source, Id}, _From, State) ->
+  Reply = handle_deletesession(Cookie, Source, Id),
+  {reply, Reply, State};
+handle_call({getsessionlog, Cookie, Source, Id, PageNo, PageSize}, _From , State) ->
+  Reply = handle_getsessionlog(Cookie, Source, Id, PageNo, PageSize),
+  {reply, Reply, State};
+handle_call({getaccesslog, Cookie, Source, Id, PageNo, PageSize}, _From , State) ->
+  Reply = handle_getaccesslog(Cookie, Source, Id, PageNo, PageSize),
   {reply, Reply, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -243,9 +283,11 @@ init_tables() ->
      {sessions, [{attributes, record_info(fields, sessions)},
                 {index, [user]}]},
      {session_log, [{disc_copies, [node()]},
+                    {index, [user]},
                     {attributes, record_info(fields, session_log)}]},
      {access_log, [{disc_copies, [node()]},
-                    {attributes, record_info(fields, access_log)}]}]
+                   {index, [userid]},
+                   {attributes, record_info(fields, access_log)}]}]
     ),
   mnesia:wait_for_tables([access, roles, users, sessions, session_log,
                           access_log], 2500).
@@ -487,7 +529,7 @@ handle_listusers(Cookie, Source, PageNo, PageSize) ->
   end.
 
 
-handle_searchuser(Cookie, Source, Name, Email, StartTS, EndTS,
+handle_searchuser(Cookie, Source, Name, Email, Status, StartTS, EndTS,
                   PageNo, PageSize) ->
   case handle_validate(Cookie, Source) of
     {error, Reason} ->
@@ -495,6 +537,7 @@ handle_searchuser(Cookie, Source, Name, Email, StartTS, EndTS,
     {ok, _Requested} ->
       Keys = mnesia:dirty_all_keys(users),
       FilteredKeys = filter_users(Keys, [{name, Name}, {email, Email},
+                                         {status, Status},
                                          {created, {StartTS, EndTS}}]),
       case get_keysforpage(FilteredKeys, to(int, PageNo), to(int, PageSize)) of
         {error, Reason} ->
@@ -533,6 +576,15 @@ filter_users_bool(UserRecord, [{email, Email}|Filters]) ->
     true ->
       true
   end;
+filter_users_bool(UserRecord, [{status, Status}|Filters]) when is_atom(Status) ->
+  case has_ic(UserRecord#users.status, Status) of
+    false ->
+      filter_users_bool(UserRecord, Filters);
+    true ->
+      true
+  end;
+filter_users_bool(UserRecord, [{status, Status}|Filters]) when is_list(Status) ->
+  filter_users_bool(UserRecord, [{status, list_to_atom(Status)}|Filters]);
 filter_users_bool(UserRecord, [{created, {StartTS, EndTS}}|Filters])
     when StartTS == undefined, EndTS == undefined ->
   filter_users_bool(UserRecord, Filters);
@@ -646,4 +698,63 @@ handle_retireuser(Cookie, Source, Id, Comment) ->
         end
       end,
       mnesia:activity(transaction, RetireUserFun)
+  end.
+
+handle_listsessions(Cookie, Source, PageNo, PageSize) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, _Requester} ->
+      Keys = mnesia:dirty_all_keys(sessions),
+       case get_keysforpage(Keys, to(int,PageNo), to(int, PageSize)) of
+         {error, Reason} ->
+           {error, Reason};
+         {ok, KeysSublist, TotalPages} ->
+            Rows = lists:flatten(lists:map(
+              fun(Key) -> mnesia:dirty_read(sessions, Key) end,
+              KeysSublist
+             )),
+            {ok, Rows, TotalPages}
+       end
+  end.
+
+handle_deletesession(Cookie, Source, Id) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, _Requester} ->
+      case mnesia:dirty_read(sessions, Id) of
+        [] ->
+          {error, no_session};
+        [SessionRecord] ->
+          mnesia:dirty_delete_object(SessionRecord)
+      end
+  end.
+
+handle_getsessionlog(Cookie, Source, Id, PageNo, PageSize) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, _Requester} ->
+      UserLogs = mnesia:dirty_index_read(session_log, Id, #session_log.user),
+      case get_keysforpage(UserLogs, to(int,PageNo), to(int, PageSize)) of
+        {error, Reason} ->
+          {error, Reason};
+        {ok, UserLogsSubSet, TotalPages} ->
+           {ok, UserLogsSubSet, TotalPages}
+      end
+  end.
+
+handle_getaccesslog(Cookie, Source, Id, PageNo, PageSize) ->
+  case handle_validate(Cookie, Source) of
+    {error, Reason} ->
+      {error, Reason};
+    {ok, _Requester} ->
+      UserLogs = mnesia:dirty_index_read(access_log, Id, #access_log.userid),
+      case get_keysforpage(UserLogs, to(int,PageNo), to(int, PageSize)) of
+        {error, Reason} ->
+          {error, Reason};
+        {ok, UserLogsSubSet, TotalPages} ->
+          {ok, UserLogsSubSet, TotalPages}
+      end
   end.

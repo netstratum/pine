@@ -31,6 +31,7 @@ init([]) ->
   {ok, { {one_for_one, 5, 10}, [OtherChild,
                                 ?CHILD(pine_mnesia, worker),
                                 ?CHILD(pine_role, worker),
+                                ?CHILD(pine_role_api, worker),
                                 ?CHILD(pine_user, worker),
                                 ?CHILD(pine_user_api, worker),
                                 ?CHILD(pine_pins, worker),
