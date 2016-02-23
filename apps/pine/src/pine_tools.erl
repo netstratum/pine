@@ -18,7 +18,6 @@
          int_to_list_pad/3,
          uuid/0,
          md5/1,
-         uptime/0,
          hexstr_to_bin/1,
          bin_to_hexstr/1,
          hexstr_to_list/1,
@@ -204,13 +203,6 @@ hexbin_to_bin(B) ->
 
 bin_to_hexbin(B) ->
   list_to_binary(bin_to_hexstr(B)).
-
-uptime() ->
-  {UpTime, _} = erlang:statistics(wall_clock),
-  {D, {H, M, S}} = calendar:seconds_to_daystime(UpTime div 1000),
-  lists:flatten(
-    io_lib:format("~p days, ~p hours, ~p minutes and ~p seconds",
-                  [D,H,M,S])).
 
 to(int, Data) ->
   to_int(Data);

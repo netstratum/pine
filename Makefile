@@ -12,7 +12,9 @@ clean:
 cleanall:
 	@${rebar} clean -a
 test:
-	@$(rebar) ct
+	@$(rebar) do ct,cover
+analyse:
+	@$(rebar) dialyzer
 release:
 	@$(rebar) release
 shell:
