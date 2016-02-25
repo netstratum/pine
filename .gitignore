@@ -14,3 +14,4 @@ pkg/rpm
 pkg/deb
 pkg/tar
 _build
+tags
