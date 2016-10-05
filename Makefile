@@ -23,3 +23,4 @@ powershell:
 	@$(rebar) run
 tar:
 	@${rebar} as prod tar
+

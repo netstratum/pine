@@ -25,6 +25,8 @@ handle_post(<<"POST">>, true, Req) ->
   {ok, Arguments, Req2} = cowboy_req:body_qs(Req),
   {Token, Req3} = cowboy_req:header(<<"x-pine-token">>, Req2),
   {{Source,_Port}, Req4} = cowboy_req:peer(Req3),
+  io:format("Arguments, Source and Token are ~p, ~p and ~p~n",
+            [Arguments, Token, Source]),
   case catch handle_command(Arguments, Token, Source) of
     {'EXIT', Reason} ->
       io:format("Exception ~p~n", [Reason]),
@@ -84,14 +86,14 @@ handle_command_specs(ApiHandlerRec, ParamsList) ->
         {ok, ReplyList} ->
           {200, encode_params(ReplyList)};
         {Status, ReplyList} ->
-          StatusCodes = ApiHandlerRec#api_handlers.statusCodes,
-          StatusCode = case lists:keyfind(Status, 1, StatusCodes) of
-            false ->
-              200;
-            {_, Code} ->
-              Code
-          end,
-          {StatusCode, encode_params(ReplyList)}
+          % StatusCodes = ApiHandlerRec#api_handlers.statusCodes,
+          % StatusCode = case lists:keyfind(Status, 1, StatusCodes) of
+          %   false ->
+          %     200;
+          %   {_, Code} ->
+          %     Code
+          % end,
+          {Status, encode_params(ReplyList)}
       end;
     [MissingParam|_] ->
       MissingParamString = to(string, MissingParam),
