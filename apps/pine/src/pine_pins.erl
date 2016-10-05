@@ -39,7 +39,7 @@ retire_pin(Seq) ->
   gen_server:call(?MODULE, {retire_pin, Seq}).
 
 init([]) ->
-  random:seed(os:timestamp()),
+  rand:seed(os:timestamp()),
   init_tables(),
   {ok, ok}.
 
@@ -92,7 +92,7 @@ init_tables() ->
 generate({PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber, SerialLength,
           CountryCode, RegionCode, OrderId},
           OrderName, FaceValue, Quantity, Length, Form) ->
-  random:seed(os:timestamp()),
+  rand:seed(os:timestamp()),
   case file:open(OrderName, [write]) of
     {ok, Fd} ->
       write_header(Fd, {PrinterCode, BrandCode, ExpiryDate, PrinterSeqNumber},
@@ -120,8 +120,8 @@ write_pins(_Fd, _SerialLength, _CountryCode,
   ok;
 write_pins(Fd, SerialLength, CountryCode, RegionCode, OrderId,
            Quantity, Length, numeric, SerialNumber) ->
-  Pin = lists:foldl(fun(_X, N) -> N * 10 + random:uniform(10) -1 end,
-                           random:uniform(9), lists:seq(1, Length-1)),
+  Pin = lists:foldl(fun(_X, N) -> N * 10 + rand:uniform(10) -1 end,
+                           rand:uniform(9), lists:seq(1, Length-1)),
   Serial = CountryCode ++ RegionCode ++ OrderId ++
            int_to_list_pad(SerialNumber + 1, SerialLength, $0),
   io:format(Fd, "~p,~s~n", [Pin, Serial]),
